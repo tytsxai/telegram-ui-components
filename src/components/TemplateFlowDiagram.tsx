@@ -9,7 +9,7 @@ import ReactFlow, {
   useEdgesState,
   MarkerType,
   Position,
-  useReactFlow,
+  ReactFlowInstance,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -60,7 +60,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
   const [focusCurrent, setFocusCurrent] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const diagramRef = useRef<HTMLDivElement | null>(null);
-  const rf = useReactFlow();
+  const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
 
   // 预计算循环集合
   const cycleNodeIds = useMemo(() => {
@@ -418,15 +418,10 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
                         const target = screens.find(s => (s.name || '').toLowerCase().includes(q));
                         if (!target) return;
                         const node = nodes.find(n => n.id === target.id);
-                        if (node) {
+                        if (node && rfInstance) {
                           const cx = (node.position?.x || 0) + 110;
                           const cy = (node.position?.y || 0) + 55;
-                          try {
-                            rf.setCenter(cx, cy, { zoom: 1, duration: 400 });
-                          } catch (e) {
-                            // ReactFlow 还未就绪或已卸载时可能抛出异常，忽略
-                            void e;
-                          }
+                          rfInstance.setCenter(cx, cy, { zoom: 1, duration: 400 });
                         }
                       }
                     }}
@@ -447,6 +442,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
             onEdgeMouseEnter={(e, edge) => showEdgeTooltip(e as unknown as React.MouseEvent, edge.id)}
             onEdgeMouseMove={(e) => moveEdgeTooltip(e as unknown as React.MouseEvent)}
             onEdgeMouseLeave={hideEdgeTooltip}
+            onInit={(inst) => setRfInstance(inst)}
             fitView
             fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
             minZoom={0.1}
