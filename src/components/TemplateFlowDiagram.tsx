@@ -62,6 +62,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
   const [hideIsolated, setHideIsolated] = useState<boolean>(false);
   const [edgeStraight, setEdgeStraight] = useState<boolean>(false);
   const [nodeScale, setNodeScale] = useState<number>(1);
+  const [mindMapMode, setMindMapMode] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const diagramRef = useRef<HTMLDivElement | null>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
@@ -76,7 +77,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
     return ids;
   }, [screens]);
 
-  // 构建节点和边（改进：结构化分层布局 + 循环高亮）
+  // 构建节点和边（改进：结构化分层布局 + 循环高亮 + 心智图模式）
   const { nodes: initialNodes, edges: initialEdges, edgeHints, matchIds } = useMemo(() => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
@@ -99,26 +100,121 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
       });
     });
 
-    // 使用结构化布局：按层级摆放
-    const { nodes: gNodes } = generateRelationshipGraph(screens);
-    const levelGroups = new Map<number, string[]>();
-    gNodes.forEach(n => {
-      const list = levelGroups.get(n.level) || [];
-      list.push(n.id);
-      levelGroups.set(n.level, list);
+    // 准备邻接表
+    const outgoingAll = new Map<string, Set<string>>();
+    const incomingAll = new Map<string, Set<string>>();
+    screens.forEach(s => {
+      const out = new Set<string>();
+      s.keyboard.forEach(r => r.buttons.forEach(b => b.linked_screen_id && out.add(b.linked_screen_id)));
+      outgoingAll.set(s.id, out);
+      out.forEach(t => {
+        const set = incomingAll.get(t) || new Set<string>();
+        set.add(s.id);
+        incomingAll.set(t, set);
+      });
     });
 
-    // 对每一层按名称排序，提升可读性
-    const sortedLevels = Array.from(levelGroups.keys()).sort((a, b) => a - b);
-    const levelIndexMap = new Map<string, { level: number; index: number }>();
-    sortedLevels.forEach(level => {
-      const ids = (levelGroups.get(level) || []).slice().sort((a, b) => {
-        const an = screenMap.get(a)?.name || '';
-        const bn = screenMap.get(b)?.name || '';
-        return an.localeCompare(bn, 'zh');
+    // 使用结构化布局或心智图布局
+    const levelIndexMap = new Map<string, { level: number; index: number; side?: 'left' | 'right' }>();
+    if (!mindMapMode) {
+      const { nodes: gNodes } = generateRelationshipGraph(screens);
+      const levelGroups = new Map<number, string[]>();
+      gNodes.forEach(n => {
+        const list = levelGroups.get(n.level) || [];
+        list.push(n.id);
+        levelGroups.set(n.level, list);
       });
-      ids.forEach((id, idx) => levelIndexMap.set(id, { level, index: idx }));
-    });
+      const sortedLevels = Array.from(levelGroups.keys()).sort((a, b) => a - b);
+      sortedLevels.forEach(level => {
+        const ids = (levelGroups.get(level) || []).slice().sort((a, b) => {
+          const an = screenMap.get(a)?.name || '';
+          const bn = screenMap.get(b)?.name || '';
+          return an.localeCompare(bn, 'zh');
+        });
+        ids.forEach((id, idx) => levelIndexMap.set(id, { level, index: idx }));
+      });
+    } else {
+      // 心智图布局：以 root 为中心，左右分支
+      // root 选择：currentScreenId > 入口（无入有出）> 第一个 screen
+      let rootId: string | undefined = currentScreenId;
+      if (!rootId) {
+        const entries = screens.filter(s => !incomingAll.has(s.id) && outgoingAll.get(s.id)?.size);
+        rootId = entries[0]?.id || screens[0]?.id;
+      }
+      if (rootId) {
+        const visited = new Set<string>();
+        const parent = new Map<string, string>();
+        const side = new Map<string, 'left' | 'right'>();
+        const level = new Map<string, number>();
+        const q: string[] = [rootId];
+        visited.add(rootId);
+        level.set(rootId, 0);
+        let toggleRight = true; // 第一层左右交替
+        while (q.length) {
+          const id = q.shift()!;
+          const lv = level.get(id) || 0;
+          const children = Array.from(outgoingAll.get(id) || []);
+          for (const ch of children) {
+            if (!visited.has(ch)) {
+              visited.add(ch);
+              parent.set(ch, id);
+              level.set(ch, lv + 1);
+              // 侧边：第一层交替，其余继承父侧
+              if (lv === 0) {
+                side.set(ch, toggleRight ? 'right' : 'left');
+                toggleRight = !toggleRight;
+              } else {
+                side.set(ch, side.get(id) || 'right');
+              }
+              q.push(ch);
+            }
+          }
+        }
+        // 分层收集
+        const groupsL = new Map<number, string[]>();
+        const groupsR = new Map<number, string[]>();
+        screens.forEach(s => {
+          if (!level.has(s.id)) return; // 未连通暂时忽略
+          const lv = level.get(s.id)!;
+          const sd = lv === 0 ? undefined : side.get(s.id);
+          if (lv === 0) {
+            levelIndexMap.set(s.id, { level: 0, index: 0 });
+            return;
+          }
+          if (sd === 'left') {
+            const arr = groupsL.get(lv) || [];
+            arr.push(s.id);
+            groupsL.set(lv, arr);
+          } else {
+            const arr = groupsR.get(lv) || [];
+            arr.push(s.id);
+            groupsR.set(lv, arr);
+          }
+        });
+        // 排序并写入索引
+        const levels = new Set<number>([...groupsL.keys(), ...groupsR.keys()]);
+        Array.from(levels).sort((a, b) => a - b).forEach(lv => {
+          const leftIds = (groupsL.get(lv) || []).slice().sort((a, b) => (screenMap.get(a)?.name || '').localeCompare(screenMap.get(b)?.name || '', 'zh'));
+          const rightIds = (groupsR.get(lv) || []).slice().sort((a, b) => (screenMap.get(a)?.name || '').localeCompare(screenMap.get(b)?.name || '', 'zh'));
+          leftIds.forEach((id, idx) => levelIndexMap.set(id, { level: lv, index: idx, side: 'left' }));
+          rightIds.forEach((id, idx) => levelIndexMap.set(id, { level: lv, index: idx, side: 'right' }));
+        });
+      } else {
+        // 回退到普通布局
+        const { nodes: gNodes } = generateRelationshipGraph(screens);
+        const levelGroups = new Map<number, string[]>();
+        gNodes.forEach(n => {
+          const list = levelGroups.get(n.level) || [];
+          list.push(n.id);
+          levelGroups.set(n.level, list);
+        });
+        const sorted = Array.from(levelGroups.keys()).sort((a, b) => a - b);
+        sorted.forEach(levelVal => {
+          const ids = (levelGroups.get(levelVal) || []).slice();
+          ids.forEach((id, idx) => levelIndexMap.set(id, { level: levelVal, index: idx }));
+        });
+      }
+    }
 
     // 计算邻接表，供“只看当前相关”过滤
     const outgoing = new Map<string, Set<string>>();
@@ -194,9 +290,25 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
       const nodeW = Math.round(baseW * nodeScale);
       const nodeH = Math.round(baseH * nodeScale);
       const xGap = Math.round(280 * nodeScale);
-      const yGap = Math.round(180 * nodeScale);
-      const x = orientation === 'horizontal' ? li.level * xGap : li.index * xGap;
-      const y = orientation === 'horizontal' ? li.index * yGap : li.level * yGap;
+      const yGap = Math.round(160 * nodeScale);
+      let x: number;
+      let y: number;
+      if (mindMapMode) {
+        if (li.level === 0) {
+          x = 0; y = 0;
+        } else {
+          const side = li.side || 'right';
+          const sideFactor = side === 'right' ? 1 : -1;
+          x = sideFactor * li.level * xGap;
+          // 层内垂直居中展开
+          const siblings = Array.from(levelIndexMap.entries()).filter(([, v]) => v.level === li.level && v.side === side).length;
+          const centerIndex = (siblings - 1) / 2;
+          y = (li.index - centerIndex) * yGap;
+        }
+      } else {
+        x = orientation === 'horizontal' ? li.level * xGap : li.index * xGap;
+        y = orientation === 'horizontal' ? li.index * yGap : li.level * yGap;
+      }
 
       let nodeColor = 'hsl(var(--primary))';
       let nodeLabel = screen.name;
@@ -301,7 +413,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
         id: key,
         source: sourceId,
         target: targetId,
-        type: edgeStraight ? 'straight' : 'smoothstep',
+        type: mindMapMode ? 'bezier' : (edgeStraight ? 'straight' : 'smoothstep'),
         animated: sourceId === currentScreenId,
         label: showButtonLabels ? buttonList : (data.count > 1 ? `${data.count}个按钮` : data.buttons[0] ?? ''),
         labelStyle: {
@@ -328,7 +440,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
     });
 
     return { nodes, edges, edgeHints: edgeHintMap, matchIds: matched };
-  }, [screens, currentScreenId, orientation, showButtonLabels, cycleNodeIds, focusCurrent, searchQuery, nodeScale, hideIsolated, edgeStraight]);
+  }, [screens, currentScreenId, orientation, showButtonLabels, cycleNodeIds, focusCurrent, searchQuery, nodeScale, hideIsolated, edgeStraight, mindMapMode]);
 
   // 打开时根据层级数量自动选择方向（水平层数多时改为垂直）
   useEffect(() => {
@@ -440,6 +552,10 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
                 <div className="flex items-center gap-2" title="只显示与当前模版相关的节点（上下游2层）">
                   <span className="text-muted-foreground">仅关联</span>
                   <Switch checked={focusCurrent} onCheckedChange={v => setFocusCurrent(!!v)} />
+                </div>
+                <div className="flex items-center gap-2" title="心智图模式（从中心向两侧发散）">
+                  <span className="text-muted-foreground">心智图</span>
+                  <Switch checked={mindMapMode} onCheckedChange={v => { setMindMapMode(!!v); setTimeout(() => rfInstance?.fitView({ padding: 0.2, maxZoom: 1 }), 50); }} />
                 </div>
                 <div className="flex items-center gap-2" title="隐藏孤立节点（未被引用且无输出）">
                   <span className="text-muted-foreground">隐藏孤立</span>
