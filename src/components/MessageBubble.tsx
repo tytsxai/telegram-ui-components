@@ -26,19 +26,6 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
     }
   }));
 
-  useEffect(() => {
-    if (editableRef.current) {
-      const formatted = formatMessage(content);
-      if (editableRef.current.innerHTML !== formatted) {
-        // Only update if content actually changed from external source
-        if (lastContentRef.current !== content) {
-          editableRef.current.innerHTML = formatted;
-          lastContentRef.current = content;
-        }
-      }
-    }
-  }, [content, formatMessage]);
-
   const escapeHtml = useCallback(
     (str: string) =>
       str
@@ -113,6 +100,19 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
     container.childNodes.forEach((n) => (result += walk(n)));
     return result;
   }, []);
+
+  useEffect(() => {
+    if (editableRef.current) {
+      const formatted = formatMessage(content);
+      if (editableRef.current.innerHTML !== formatted) {
+        // Only update if content actually changed from external source
+        if (lastContentRef.current !== content) {
+          editableRef.current.innerHTML = formatted;
+          lastContentRef.current = content;
+        }
+      }
+    }
+  }, [content, formatMessage]);
 
   const saveCursorPosition = () => {
     const selection = window.getSelection();
