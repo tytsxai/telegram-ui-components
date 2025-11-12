@@ -241,6 +241,8 @@ const TelegramChatWithDB = () => {
   const [detectedCircularPaths, setDetectedCircularPaths] = useState<Array<{ path: string[]; screenNames: string[] }>>([]);
   // 置顶模版（本地持久化，按用户隔离）
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
+  // 加载错误提示去重
+  const loadErrorShownRef = useRef(false);
   // 是否允许循环引用（持久化到本地）
   const [allowCircular, setAllowCircular] = useState<boolean>(() => {
     try {
@@ -277,6 +279,7 @@ const TelegramChatWithDB = () => {
 
   // 置顶：读取与持久化
   const PINNED_KEY = user ? `pinned_screens_${user.id}` : 'pinned_screens_anon';
+  const CACHE_KEY = user ? `cached_screens_${user.id}` : 'cached_screens_anon';
   useEffect(() => {
     try {
       const raw = localStorage.getItem(PINNED_KEY);
@@ -312,6 +315,7 @@ const TelegramChatWithDB = () => {
       return (b.name || '').localeCompare(a.name || '', 'zh');
     });
   }, [pinnedIds]);
+
 
   // Memo 化昂贵的计算
   const circularReferences = useMemo(() => {
@@ -476,12 +480,30 @@ const TelegramChatWithDB = () => {
     if (!user) return [];
     setIsLoading(true);
     try {
-      const { data, error } = await fromUnsafe(supabase.from)("screens")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+      const request = async () => {
+        const { data, error } = await fromUnsafe(supabase.from)("screens")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        return data ?? [];
+      };
 
-      if (error) throw error;
+      const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+      let data: unknown[] = [];
+      let lastErr: unknown = null;
+      for (let i = 0; i < 3; i++) {
+        try {
+          data = await request();
+          lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+          await delay(400 * (i + 1));
+        }
+      }
+      if (lastErr) throw lastErr;
+
       const typedData: ScreenRow[] = (data ?? []) as ScreenRow[];
       const loadedScreens = typedData.map((screen) => ({
         ...screen,
@@ -489,15 +511,35 @@ const TelegramChatWithDB = () => {
       }));
       const ordered = reorderByPinned(loadedScreens as Screen[]);
       setScreens(ordered);
+      // 缓存最新成功数据
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify(ordered)); } catch (e) { void e; }
       return loadedScreens; // 修复：返回最新数据供调用者使用
     } catch (error) {
       console.error('[LoadScreens] Error:', error);
-      toast.error("加载模版失败");
+      // 尝试从缓存恢复
+      try {
+        const raw = localStorage.getItem(CACHE_KEY);
+        if (raw) {
+          const cached: unknown = JSON.parse(raw);
+          if (Array.isArray(cached)) {
+            setScreens(reorderByPinned(cached as Screen[]));
+            if (!loadErrorShownRef.current) {
+              toast.warning("离线或服务异常：已加载本地缓存的数据");
+              loadErrorShownRef.current = true;
+            }
+            return cached as Screen[];
+          }
+        }
+      } catch (e) { void e; }
+      if (!loadErrorShownRef.current) {
+        toast.error("加载模版失败");
+        loadErrorShownRef.current = true;
+      }
       return []; // 错误时返回空数组
     } finally {
       setIsLoading(false);
     }
-  }, [user, reorderByPinned]);
+  }, [user, reorderByPinned, CACHE_KEY]);
 
   useEffect(() => {
     if (user && !screensLoaded) {
