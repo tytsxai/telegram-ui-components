@@ -68,6 +68,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
   const [fullscreen, setFullscreen] = useState<boolean>(false);
   const autoOrientedRef = useRef(false);
+  const PREF_KEY = 'diagram_pref_mindmap';
 
   // 预计算循环集合
   const cycleNodeIds = useMemo(() => {
@@ -442,19 +443,40 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
     return { nodes, edges, edgeHints: edgeHintMap, matchIds: matched };
   }, [screens, currentScreenId, orientation, showButtonLabels, cycleNodeIds, focusCurrent, searchQuery, nodeScale, hideIsolated, edgeStraight, mindMapMode]);
 
-  // 打开时根据层级数量自动选择方向（水平层数多时改为垂直）
+  // 打开时：加载偏好/自动选择模式与方向，并 fitView
   useEffect(() => {
     if (!open) { autoOrientedRef.current = false; return; }
-    if (autoOrientedRef.current) return;
-    const { nodes: gNodes } = generateRelationshipGraph(screens);
-    const levelSet = new Set<number>();
-    gNodes.forEach(n => levelSet.add(n.level));
-    const levelCount = levelSet.size;
-    if (levelCount >= 5) {
-      setOrientation('vertical');
+    // 1) 读取本地偏好（低风险：只在有偏好时覆盖）
+    try {
+      const raw = localStorage.getItem(PREF_KEY);
+      if (raw === 'true' || raw === 'false') {
+        setMindMapMode(raw === 'true');
+      }
+    } catch (e) { void e; }
+
+    // 2) 自动选择方向 + 默认心智图（仅大图时开启，低风险）
+    if (!autoOrientedRef.current) {
+      const { nodes: gNodes } = generateRelationshipGraph(screens);
+      const levelSet = new Set<number>();
+      gNodes.forEach(n => levelSet.add(n.level));
+      const levelCount = levelSet.size;
+      const nodeCount = screens.length;
+      if (levelCount >= 5) setOrientation('vertical');
+      // 大图默认心智图模式（节点>=15 或 层级>=5）
+      if (nodeCount >= 15 || levelCount >= 5) {
+        setMindMapMode(true);
+      }
+      autoOrientedRef.current = true;
     }
-    autoOrientedRef.current = true;
-  }, [open, screens]);
+
+    // 3) 初始自适应
+    setTimeout(() => rfInstance?.fitView({ padding: 0.2, maxZoom: 1 }), 80);
+  }, [open, screens, rfInstance]);
+
+  // 切换心智图时保存偏好
+  useEffect(() => {
+    try { localStorage.setItem(PREF_KEY, mindMapMode ? 'true' : 'false'); } catch (e) { void e; }
+  }, [mindMapMode]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
