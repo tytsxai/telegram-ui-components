@@ -21,7 +21,6 @@ import { AlertCircle, Home, RotateCw, ListChecks, ArrowLeftRight, ArrowUpDown, M
 import { Switch } from '@/components/ui/switch';
 import { findAllCircularReferences, generateRelationshipGraph } from '@/lib/referenceChecker';
 import { supabase } from '@/integrations/supabase/client';
-import { fromUnsafe } from '@/integrations/supabase/unsafe';
 
 interface Screen {
   id: string;
@@ -569,10 +568,10 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
         try {
           // 批量保存：先清理本用户当前模板集合，再插入
           const ids = nodes.map(n => n.id);
-          await fromUnsafe(supabase)("screen_layouts").delete().eq("user_id", userId).in("screen_id", ids);
+          await supabase.from("screen_layouts").delete().eq("user_id", userId).in("screen_id", ids);
           const payload = data.map(d => ({ user_id: userId, screen_id: d.id, x: d.x, y: d.y }));
           if (payload.length > 0) {
-            await fromUnsafe(supabase)("screen_layouts").insert(payload);
+            await supabase.from("screen_layouts").insert(payload);
           }
         } catch (e) { /* ignore cloud errors */ }
       })();
@@ -597,7 +596,8 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
     try {
       const ids = screens.map(s => s.id);
       if (ids.length === 0) return false;
-      const { data, error } = await fromUnsafe(supabase)("screen_layouts")
+      const { data, error } = await supabase
+        .from("screen_layouts")
         .select("screen_id,x,y")
         .eq("user_id", userId)
         .in("screen_id", ids);

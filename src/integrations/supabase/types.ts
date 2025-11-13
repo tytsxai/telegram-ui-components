@@ -14,7 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      screens: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          message_content: string
+          keyboard: Json
+          is_public: boolean
+          share_token: string | null
+          created_at: string | null
+          updated_at?: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          message_content: string
+          keyboard: Json
+          is_public?: boolean
+          share_token?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          message_content?: string
+          keyboard?: Json
+          is_public?: boolean
+          share_token?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
+      user_pins: {
+        Row: {
+          user_id: string
+          pinned_ids: string[]
+          updated_at: string | null
+        }
+        Insert: {
+          user_id: string
+          pinned_ids?: string[]
+          updated_at?: string | null
+        }
+        Update: {
+          user_id?: string
+          pinned_ids?: string[]
+          updated_at?: string | null
+        }
+      }
+      screen_layouts: {
+        Row: {
+          user_id: string
+          screen_id: string
+          x: number
+          y: number
+          updated_at: string | null
+        }
+        Insert: {
+          user_id: string
+          screen_id: string
+          x: number
+          y: number
+          updated_at?: string | null
+        }
+        Update: {
+          user_id?: string
+          screen_id?: string
+          x?: number
+          y?: number
+          updated_at?: string | null
+        }
+      }
     }
     Views: {
       [_ in never]: never

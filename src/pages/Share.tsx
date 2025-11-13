@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { fromUnsafe } from "@/integrations/supabase/unsafe";
 import MessageBubble from "@/components/MessageBubble";
 import InlineKeyboard from "@/components/InlineKeyboard";
 import { Button } from "@/components/ui/button";
@@ -53,7 +52,8 @@ const Share = () => {
   useEffect(() => {
     const fetchScreen = async () => {
       try {
-        const { data, error } = await fromUnsafe(supabase)("screens")
+        const { data, error } = await supabase
+          .from("screens")
           .select("*")
           .eq("share_token", token)
           .eq("is_public", true)
@@ -92,7 +92,8 @@ const Share = () => {
     if (!screen) return;
 
     try {
-      const { error } = await fromUnsafe(supabase)("screens")
+      const { error } = await supabase
+        .from("screens")
         .insert([{
         user_id: user.id,
         name: `${screen.name} (副本)`,
