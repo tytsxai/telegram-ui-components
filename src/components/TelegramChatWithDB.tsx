@@ -301,6 +301,20 @@ const TelegramChatWithDB = () => {
     try { localStorage.setItem(PINNED_KEY, JSON.stringify(ids)); } catch (e) { void e; }
   }, [PINNED_KEY]);
 
+  const reorderByPinned = useCallback((list: Screen[]) => {
+    const set = new Set(pinnedIds);
+    type WithMeta = Screen & { created_at?: string };
+    const getCreatedAt = (s: WithMeta) => typeof s.created_at === 'string' ? Date.parse(s.created_at) : 0;
+    return [...list].sort((a: WithMeta, b: WithMeta) => {
+      const ap = set.has(a.id) ? 1 : 0;
+      const bp = set.has(b.id) ? 1 : 0;
+      if (ap !== bp) return bp - ap; // pinned first
+      const bd = getCreatedAt(b) - getCreatedAt(a);
+      if (bd !== 0) return bd; // newer first
+      return (b.name || '').localeCompare(a.name || '', 'zh');
+    });
+  }, [pinnedIds]);
+
   // 云端置顶（可用则同步；失败则忽略）
   const loadPinnedCloud = useCallback(async () => {
     if (!user) return;
@@ -330,20 +344,6 @@ const TelegramChatWithDB = () => {
   }, [user]);
 
   const isPinned = useCallback((id?: string) => !!id && pinnedIds.includes(id), [pinnedIds]);
-
-  const reorderByPinned = useCallback((list: Screen[]) => {
-    const set = new Set(pinnedIds);
-    type WithMeta = Screen & { created_at?: string };
-    const getCreatedAt = (s: WithMeta) => typeof s.created_at === 'string' ? Date.parse(s.created_at) : 0;
-    return [...list].sort((a: WithMeta, b: WithMeta) => {
-      const ap = set.has(a.id) ? 1 : 0;
-      const bp = set.has(b.id) ? 1 : 0;
-      if (ap !== bp) return bp - ap; // pinned first
-      const bd = getCreatedAt(b) - getCreatedAt(a);
-      if (bd !== 0) return bd; // newer first
-      return (b.name || '').localeCompare(a.name || '', 'zh');
-    });
-  }, [pinnedIds]);
 
 
   // Memo 化昂贵的计算
