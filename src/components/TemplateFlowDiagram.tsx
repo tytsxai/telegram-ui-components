@@ -726,6 +726,8 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
 
   const runSmartArrange = useCallback(() => {
     if (screens.length === 0) return;
+
+    // 根据规模自动切换方向/心智图
     const { nodes: gNodes } = generateRelationshipGraph(screens);
     const levelGroups = new Map<number, string[]>();
     gNodes.forEach(n => {
@@ -735,6 +737,12 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
     });
     const levels = Array.from(levelGroups.keys()).sort((a, b) => a - b);
     if (levels.length === 0) return;
+
+    const nodeCount = screens.length;
+    const levelCount = levels.length;
+    const shouldMindMap = nodeCount >= 15 || levelCount >= 5;
+    setMindMapMode(shouldMindMap);
+    setOrientation(shouldMindMap ? 'horizontal' : (levelCount >= 5 ? 'vertical' : orientation));
 
     const neighbor = new Map<string, Set<string>>();
     const revNeighbor = new Map<string, Set<string>>();
@@ -759,7 +767,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
       order.set(lv, ids);
     });
 
-    const passes = 2;
+    const passes = 3;
     for (let p = 0; p < passes; p++) {
       for (let i = 1; i < levels.length; i++) {
         const prev = order.get(levels[i - 1]) || [];
@@ -771,7 +779,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
           const bc = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : Infinity;
           return { id, bc };
         });
-        scored.sort((a, b) => (a.bc === b.bc ? 0 : (a.bc < b.bc ? -1 : 1)));
+        scored.sort((a, b) => (a.bc === b.bc ? cur.indexOf(a.id) - cur.indexOf(b.id) : (a.bc < b.bc ? -1 : 1)));
         order.set(levels[i], scored.map(s => s.id));
       }
       for (let i = levels.length - 2; i >= 0; i--) {
@@ -784,31 +792,85 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
           const bc = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : Infinity;
           return { id, bc };
         });
-        scored.sort((a, b) => (a.bc === b.bc ? 0 : (a.bc < b.bc ? -1 : 1)));
+        scored.sort((a, b) => (a.bc === b.bc ? cur.indexOf(a.id) - cur.indexOf(b.id) : (a.bc < b.bc ? -1 : 1)));
         order.set(levels[i], scored.map(s => s.id));
       }
     }
 
-    const xGap = Math.round(280 * nodeScale);
-    const yGap = Math.round(180 * nodeScale);
     const positions = new Map<string, { x: number; y: number }>();
-    levels.forEach((lv, li) => {
-      const ids = order.get(lv) || [];
-      const center = (ids.length - 1) / 2;
-      ids.forEach((id, idx) => {
-        const x = orientation === 'horizontal' ? li * xGap : idx * xGap;
-        const y = orientation === 'horizontal' ? (idx - center) * yGap : li * yGap;
-        positions.set(id, { x, y });
+    if (shouldMindMap) {
+      const rootId = currentScreenId || order.get(levels[0])?.[0] || screens[0]?.id;
+      const sideMap = new Map<string, 'left' | 'right'>();
+      const levelMap = new Map<string, number>();
+      if (rootId) {
+        levelMap.set(rootId, 0);
+        const queue: string[] = [rootId];
+        let toggle = true;
+        while (queue.length) {
+          const node = queue.shift()!;
+          const lv = levelMap.get(node) ?? 0;
+          const children = order.get(lv + 1)?.filter(id => (revNeighbor.get(id) || new Set()).has(node)) || [];
+          children.forEach(child => {
+            if (!levelMap.has(child)) {
+              levelMap.set(child, lv + 1);
+              if (lv === 0) {
+                sideMap.set(child, toggle ? 'right' : 'left');
+                toggle = !toggle;
+              } else {
+                sideMap.set(child, sideMap.get(node) || 'right');
+              }
+              queue.push(child);
+            }
+          });
+        }
+        const xGap = Math.round(320 * nodeScale);
+        const yGap = Math.round(160 * nodeScale);
+        const leftGroups = new Map<number, string[]>();
+        const rightGroups = new Map<number, string[]>();
+        screens.forEach(s => {
+          const lv = levelMap.get(s.id);
+          if (lv === undefined) return;
+          if (lv === 0) {
+            positions.set(s.id, { x: 0, y: 0 });
+            return;
+          }
+          const side = sideMap.get(s.id) || 'right';
+          const map = side === 'left' ? leftGroups : rightGroups;
+          const arr = map.get(lv) || [];
+          arr.push(s.id);
+          map.set(lv, arr);
+        });
+        Array.from(new Set([...leftGroups.keys(), ...rightGroups.keys()])).sort((a, b) => a - b).forEach(lv => {
+          const left = (leftGroups.get(lv) || []).slice();
+          const right = (rightGroups.get(lv) || []).slice();
+          left.forEach((id, idx) => {
+            positions.set(id, { x: -lv * xGap, y: (idx - (left.length - 1) / 2) * yGap });
+          });
+          right.forEach((id, idx) => {
+            positions.set(id, { x: lv * xGap, y: (idx - (right.length - 1) / 2) * yGap });
+          });
+        });
+      }
+    } else {
+      const xGap = Math.round(260 * nodeScale);
+      const yGap = Math.round(160 * nodeScale);
+      levels.forEach((lv, li) => {
+        const ids = order.get(lv) || [];
+        const center = (ids.length - 1) / 2;
+        ids.forEach((id, idx) => {
+          const x = orientation === 'horizontal' ? li * xGap : idx * xGap;
+          const y = orientation === 'horizontal' ? (idx - center) * yGap : li * yGap;
+          positions.set(id, { x, y });
+        });
       });
-    });
+    }
+
     if (positions.size === 0) return;
 
-    setUseSavedPositions(true);
+    setUseSavedPositions(false);
     setNodes(prev => prev.map(n => positions.has(n.id) ? { ...n, position: positions.get(n.id)! } : n));
-    const payload = Array.from(positions.entries()).map(([id, coords]) => ({ id, x: coords.x, y: coords.y }));
-    void persistPositions(payload);
     setTimeout(() => rfInstance?.fitView({ padding: 0.2, maxZoom: 1 }), 80);
-  }, [screens, nodeScale, orientation, setNodes, persistPositions, rfInstance]);
+  }, [screens, nodeScale, orientation, currentScreenId, setNodes, rfInstance]);
 
   // 边悬浮提示
   const [edgeTooltip, setEdgeTooltip] = useState<{ visible: boolean; x: number; y: number; text: string }>({ visible: false, x: 0, y: 0, text: '' });
