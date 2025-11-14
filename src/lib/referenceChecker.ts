@@ -237,8 +237,20 @@ export const generateRelationshipGraph = (
 
   const rootScreens = allScreens.filter((s) => !referencedIds.has(s.id));
 
-  // 从根节点开始计算层级
-  rootScreens.forEach((root) => calculateLevels(root.id));
+  // 从根节点开始计算层级；若不存在明确根节点（所有节点都互相引用），选择一个具有输出的节点作为锚点
+  if (rootScreens.length > 0) {
+    rootScreens.forEach((root) => calculateLevels(root.id));
+  } else if (allScreens.length > 0) {
+    const fallback =
+      allScreens.find((screen) =>
+        (screen.keyboard ?? []).some((row) =>
+          row.buttons?.some((btn) => Boolean(btn.linked_screen_id))
+        )
+      ) || allScreens[0];
+    if (fallback) {
+      calculateLevels(fallback.id);
+    }
+  }
 
   // 为孤立节点设置层级
   allScreens.forEach((screen) => {
