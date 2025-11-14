@@ -882,8 +882,8 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
             }
           });
         }
-        const xGap = Math.round(320 * nodeScale);
-        const yGap = Math.round(160 * nodeScale);
+        const xGap = Math.round(360 * nodeScale);
+        const yGap = Math.round(180 * nodeScale);
         const leftGroups = new Map<number, string[]>();
         const rightGroups = new Map<number, string[]>();
         screens.forEach(s => {
@@ -914,14 +914,14 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
       const dagreGraph = new dagre.graphlib.Graph();
       dagreGraph.setGraph({
         rankdir: orientation === 'horizontal' ? 'LR' : 'TB',
-        ranksep: 220 * nodeScale,
-        nodesep: 140 * nodeScale,
-        marginx: 60,
-        marginy: 60,
+        ranksep: 260 * nodeScale,
+        nodesep: 180 * nodeScale,
+        marginx: 100,
+        marginy: 100,
       });
       dagreGraph.setDefaultEdgeLabel(() => ({}));
-      const approxWidth = 220 * nodeScale;
-      const approxHeight = 110 * nodeScale;
+      const approxWidth = 250 * nodeScale;
+      const approxHeight = 130 * nodeScale;
 
       screens.forEach(screen => {
         dagreGraph.setNode(screen.id, { width: approxWidth, height: approxHeight });
