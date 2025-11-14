@@ -6,7 +6,7 @@ import { fromUnsafe } from "@/integrations/supabase/unsafe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Plus, Save, Trash2, FileText, Bold, Italic, Code, Link, Share2, LogOut, Download, Copy, Upload, Edit2, Eye, Edit, Undo2, Redo2, AlertCircle, Network, Star, StarOff } from "lucide-react";
+import { Plus, Save, Trash, Trash2, FileText, Bold, Italic, Code, Link, Share2, LogOut, Download, Copy, Upload, Edit2, Eye, Edit, Undo2, Redo2, AlertCircle, Network, Star, StarOff } from "lucide-react";
 import MessageBubble, { MessageBubbleHandle } from "./MessageBubble";
 import InlineKeyboard from "./InlineKeyboard";
 import ButtonEditDialog from "./ButtonEditDialog";
@@ -228,7 +228,11 @@ const TelegramChatWithDB = () => {
   const [renameValue, setRenameValue] = useState("");
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [editableJSON, setEditableJSON] = useState("");
-  const convertToTelegramFormat = (): TelegramExportPayload => {
+  const [isImporting, setIsImporting] = useState(false);
+  const [isClearingScreens, setIsClearingScreens] = useState(false);
+  const [jsonSyncError, setJsonSyncError] = useState<string | null>(null);
+  const jsonAutoApplyTimeoutRef = useRef<number | null>(null);
+  const convertToTelegramFormat = useCallback((): TelegramExportPayload => {
     const text = messageContent
       .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')  // Bold
       .replace(/`(.*?)`/g, '<code>$1</code>')  // Code
@@ -255,15 +259,28 @@ const TelegramChatWithDB = () => {
       parse_mode: "HTML",
       ...(reply_markup && { reply_markup })
     };
-  };
+  }, [messageContent, keyboard]);
 
-  const updateEditableJSON = () => {
+  const updateEditableJSON = useCallback(() => {
     setEditableJSON(JSON.stringify(convertToTelegramFormat(), null, 2));
-  };
+  }, [convertToTelegramFormat]);
 
   useEffect(() => {
     updateEditableJSONRef.current = updateEditableJSON;
-  });
+  }, [updateEditableJSON]);
+
+  useEffect(() => {
+    updateEditableJSON();
+    setJsonSyncError(null);
+  }, [updateEditableJSON]);
+
+  useEffect(() => {
+    return () => {
+      if (jsonAutoApplyTimeoutRef.current) {
+        window.clearTimeout(jsonAutoApplyTimeoutRef.current);
+      }
+    };
+  }, []);
   const [navigationHistory, setNavigationHistory] = useState<string[]>([]);
   const [buttonEditDialogOpen, setButtonEditDialogOpen] = useState(false);
   const [editingButtonData, setEditingButtonData] = useState<{
@@ -1016,6 +1033,62 @@ const TelegramChatWithDB = () => {
     }
   };
 
+  const deleteAllScreens = async () => {
+    if (!user) {
+      toast.error("请先登录");
+      return;
+    }
+    if (screens.length === 0) {
+      toast.info("当前没有可删除的模版");
+      return;
+    }
+
+    const confirmed = confirm(
+      `⚠️ 即将删除您账户下的 ${screens.length} 个模版，此操作不可恢复。\n\n` +
+      `所有导航记录、置顶与缓存也将被清空。\n\n` +
+      `确定要继续吗？`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsClearingScreens(true);
+
+    try {
+      const { error } = await supabase
+        .from("screens")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      const defaultKeyboard = createDefaultKeyboard();
+      setScreens([]);
+      setCurrentScreenId(undefined);
+      setEditorState({
+        messageContent: DEFAULT_MESSAGE,
+        keyboard: defaultKeyboard,
+      });
+      setNewScreenName("");
+      setNavigationHistory([]);
+      setPinnedIds([]);
+      persistPinned([]);
+      savePinnedCloud([]);
+      setHasUnsavedChanges(false);
+      setLastSavedContent({ message: DEFAULT_MESSAGE, keyboard: defaultKeyboard });
+      resetHistory({ messageContent: DEFAULT_MESSAGE, keyboard: defaultKeyboard });
+      clearLocalStorage();
+      toast.success("已删除所有模版");
+    } catch (error) {
+      console.error('[deleteAllScreens] error:', error);
+      toast.error("删除全部模版失败");
+    } finally {
+      setIsClearingScreens(false);
+      await loadScreens();
+    }
+  };
+
   // 全局快捷键支持 - 使用 useRef 避免闭包陷阱
   const handlersRef = useRef<{
     updateScreen: () => Promise<void>;
@@ -1164,6 +1237,56 @@ const TelegramChatWithDB = () => {
     toast.success("JSON 已复制到剪贴板！");
   };
 
+  const applyEditableJSON = useCallback((rawJSON: string, options?: { silent?: boolean }) => {
+    try {
+      const parsed: unknown = JSON.parse(rawJSON);
+      if (!isTelegramExportPayload(parsed)) {
+        throw new Error("Invalid JSON");
+      }
+      
+      const markdownText = parsed.text
+        .replace(/<b>(.*?)<\/b>/g, '**$1**')
+        .replace(/<code>(.*?)<\/code>/g, '`$1`')
+        .replace(/<i>(.*?)<\/i>/g, '_$1_');
+      
+      setMessageContent(markdownText);
+
+      const inlineKeyboard = parsed.reply_markup?.inline_keyboard;
+      if (inlineKeyboard && isTelegramKeyboard(inlineKeyboard)) {
+        setKeyboard(buildKeyboardFromTelegram(inlineKeyboard));
+      }
+
+      setJsonSyncError(null);
+      if (!options?.silent) {
+        toast.success("JSON 已应用！");
+      }
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      setJsonSyncError("JSON 无法解析或结构不正确");
+      if (!options?.silent) {
+        toast.error(message === "Invalid JSON" ? "JSON 格式无效" : "JSON 应用失败");
+      }
+      return false;
+    }
+  }, [setKeyboard, setMessageContent, setJsonSyncError]);
+
+  const handleEditableJSONChange = (value: string) => {
+    setEditableJSON(value);
+    if (jsonAutoApplyTimeoutRef.current) {
+      window.clearTimeout(jsonAutoApplyTimeoutRef.current);
+    }
+    if (!value.trim()) {
+      setJsonSyncError("JSON 不能为空");
+      return;
+    }
+    setJsonSyncError(null);
+    jsonAutoApplyTimeoutRef.current = window.setTimeout(() => {
+      applyEditableJSON(value, { silent: true });
+      jsonAutoApplyTimeoutRef.current = null;
+    }, 800);
+  };
+
   const processImportedJSON = async (rawJSON: string) => {
     const jsonToParse = rawJSON.trim();
     if (!jsonToParse) {
@@ -1171,66 +1294,95 @@ const TelegramChatWithDB = () => {
       return;
     }
 
+    setIsImporting(true);
+
     try {
       const parsed: unknown = JSON.parse(jsonToParse);
       
-      // Check if it's a flow export
       if (isFlowExportPayload(parsed)) {
         if (!user) {
           toast.error("请先登录");
           return;
         }
+
+        const buildImportedName = (name: string | undefined, index: number) => {
+          const cleaned = (name ?? `导入模版 ${index + 1}`)
+            .replace(/\s*(?:\(导入\))+$/g, "")
+            .trim();
+          const base = cleaned || `导入模版 ${index + 1}`;
+          return `${base} (导入)`;
+        };
         
         const importedScreens: Screen[] = [];
+        const insertedIds: string[] = [];
         const oldIdToNewId: Record<string, string> = {};
-        
-        for (const screen of parsed.screens) {
-          const baseName = screen.name.replace(/\s*(?:\(导入\))+$/g, "");
-          const normalizedName = `${baseName} (导入)`;
-          const normalizedKeyboard = ensureKeyboard(screen.keyboard);
-          const { data, error } = await supabase
-            .from("screens")
-            .insert([{
-              user_id: user.id,
-              name: normalizedName,
-              message_content: screen.message_content,
-              keyboard: normalizedKeyboard,
-              is_public: false,
-            }])
-            .select()
-            .single();
-          
-          if (error) throw error;
-          if (data) {
-            const savedRow = data as ScreenRow;
-            const savedScreen: Screen = {
-              ...savedRow,
-              keyboard: ensureKeyboard(savedRow.keyboard),
-            };
-            oldIdToNewId[screen.id] = savedScreen.id;
-            importedScreens.push(savedScreen);
-          }
-        }
-        
-        for (const screen of importedScreens) {
-          let needsUpdate = false;
-          const updatedKeyboard = screen.keyboard.map((row) => ({
-            ...row,
-            buttons: row.buttons.map((btn) => {
-              if (btn.linked_screen_id && oldIdToNewId[btn.linked_screen_id]) {
-                needsUpdate = true;
-                return { ...btn, linked_screen_id: oldIdToNewId[btn.linked_screen_id] };
-              }
-              return btn;
-            }),
+
+        try {
+          const rowsToInsert = parsed.screens.map((screen, index) => ({
+            user_id: user.id,
+            name: buildImportedName(screen.name, index),
+            message_content: screen.message_content,
+            keyboard: ensureKeyboard(screen.keyboard),
+            is_public: false,
           }));
           
-          if (needsUpdate) {
-            await supabase
-              .from("screens")
-              .update({ keyboard: updatedKeyboard })
-              .eq("id", screen.id);
+          if (rowsToInsert.length === 0) {
+            toast.error("导入文件中没有可用的模版");
+            return;
           }
+
+          const { data, error } = await supabase
+            .from("screens")
+            .insert(rowsToInsert)
+            .select();
+
+          if (error) throw error;
+          const rows = (data ?? []) as ScreenRow[];
+          rows.forEach((row, index) => {
+            const savedScreen: Screen = {
+              ...row,
+              keyboard: ensureKeyboard(row.keyboard),
+            };
+            importedScreens.push(savedScreen);
+            insertedIds.push(savedScreen.id);
+            const originalScreen = parsed.screens[index];
+            if (originalScreen) {
+              oldIdToNewId[originalScreen.id] = savedScreen.id;
+            }
+          });
+
+          const updatePromises = importedScreens
+            .map((screen) => {
+              let needsUpdate = false;
+              const updatedKeyboard = screen.keyboard.map((row) => ({
+                ...row,
+                buttons: row.buttons.map((btn) => {
+                  if (btn.linked_screen_id && oldIdToNewId[btn.linked_screen_id]) {
+                    needsUpdate = true;
+                    return { ...btn, linked_screen_id: oldIdToNewId[btn.linked_screen_id] };
+                  }
+                  return btn;
+                }),
+              }));
+
+              if (needsUpdate) {
+                return supabase
+                  .from("screens")
+                  .update({ keyboard: updatedKeyboard })
+                  .eq("id", screen.id);
+              }
+              return null;
+            })
+            .filter(Boolean) as PromiseLike<unknown>[];
+
+          if (updatePromises.length > 0) {
+            await Promise.all(updatePromises);
+          }
+        } catch (flowError) {
+          if (insertedIds.length > 0) {
+            await supabase.from("screens").delete().in("id", insertedIds);
+          }
+          throw flowError;
         }
         
         await loadScreens();
@@ -1267,14 +1419,18 @@ const TelegramChatWithDB = () => {
     } catch (error) {
       console.error(error);
       toast.error("JSON 格式无效或导入失败");
+    } finally {
+      setIsImporting(false);
     }
   };
 
   const handleImportJSON = async () => {
+    if (isImporting) return;
     await processImportedJSON(importJSON);
   };
 
   const handleImportFileSelect = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (isImporting) return;
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -1291,28 +1447,11 @@ const TelegramChatWithDB = () => {
   };
 
   const handleApplyEditedJSON = () => {
-    try {
-      const parsed: unknown = JSON.parse(editableJSON);
-      if (!isTelegramExportPayload(parsed)) {
-        throw new Error("Invalid JSON");
-      }
-      
-      const markdownText = parsed.text
-        .replace(/<b>(.*?)<\/b>/g, '**$1**')
-        .replace(/<code>(.*?)<\/code>/g, '`$1`')
-        .replace(/<i>(.*?)<\/i>/g, '_$1_');
-      
-      setMessageContent(markdownText);
-
-      const inlineKeyboard = parsed.reply_markup?.inline_keyboard;
-      if (inlineKeyboard && isTelegramKeyboard(inlineKeyboard)) {
-        setKeyboard(buildKeyboardFromTelegram(inlineKeyboard));
-      }
-
-      toast.success("JSON 已应用！");
-    } catch (error) {
-      toast.error("JSON 格式无效");
+    if (jsonAutoApplyTimeoutRef.current) {
+      window.clearTimeout(jsonAutoApplyTimeoutRef.current);
+      jsonAutoApplyTimeoutRef.current = null;
     }
+    applyEditableJSON(editableJSON);
   };
 
   const handleRenameScreen = async () => {
@@ -1668,14 +1807,16 @@ const TelegramChatWithDB = () => {
                 type="file"
                 accept="application/json,.json"
                 className="hidden"
+                disabled={isImporting}
                 onChange={handleImportFileSelect}
               />
               <Button
                 variant="secondary"
                 onClick={() => fileInputRef.current?.click()}
                 className="w-full sm:w-auto"
+                disabled={isImporting}
               >
-                选择 JSON 文件
+                {isImporting ? "处理中..." : "选择 JSON 文件"}
               </Button>
               <p className="text-xs text-muted-foreground sm:text-right">
                 支持直接选择从本工具导出的 JSON 文件
@@ -1686,7 +1827,12 @@ const TelegramChatWithDB = () => {
             <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
               取消
             </Button>
-            <Button onClick={handleImportJSON}>导入</Button>
+            <Button
+              onClick={handleImportJSON}
+              disabled={isImporting || !importJSON.trim()}
+            >
+              {isImporting ? "导入中..." : "导入"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1941,6 +2087,15 @@ const TelegramChatWithDB = () => {
                 >
                   <Share2 className="w-4 h-4 mr-2" /> 分享
                 </Button>
+                <Button
+                  variant="destructive"
+                  onClick={deleteAllScreens}
+                  disabled={screens.length === 0 || isClearingScreens}
+                  className="flex-1 sm:flex-none"
+                >
+                  <Trash className="w-4 h-4 mr-2" />
+                  {isClearingScreens ? "清空中..." : "清空全部"}
+                </Button>
               </div>
             </div>
           )}
@@ -2066,15 +2221,19 @@ const TelegramChatWithDB = () => {
           <details className="cursor-pointer" open>
             <summary className="text-sm font-semibold mb-2">Telegram API 预览（可编辑）</summary>
             <Textarea
-              value={editableJSON || JSON.stringify(convertToTelegramFormat(), null, 2)}
-              onChange={(e) => setEditableJSON(e.target.value)}
+              value={editableJSON}
+              onChange={(e) => handleEditableJSONChange(e.target.value)}
               className="font-mono text-xs min-h-[200px] mb-2"
               placeholder="编辑 JSON..."
             />
+            {jsonSyncError && (
+              <p className="text-xs text-destructive mb-2">{jsonSyncError}</p>
+            )}
             <Button
               onClick={handleApplyEditedJSON}
               size="sm"
               className="w-full"
+              disabled={!editableJSON.trim() || isImporting}
             >
               应用 JSON 修改
             </Button>

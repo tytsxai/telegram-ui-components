@@ -36,6 +36,10 @@ npm i
 npm run dev
 ```
 
+## Environment variables
+
+Duplicate `.env.example` to `.env` and fill in your Supabase project URL, project ID, and publishable key before running the app locally.
+
 **Edit a file directly in GitHub**
 
 - Navigate to the desired file(s).
