@@ -2,24 +2,7 @@
  * 引用完整性检查工具
  */
 
-interface KeyboardButton {
-  id: string;
-  text: string;
-  url?: string;
-  callback_data?: string;
-  linked_screen_id?: string;
-}
-
-interface KeyboardRow {
-  id: string;
-  buttons: KeyboardButton[];
-}
-
-interface Screen {
-  id: string;
-  name: string;
-  keyboard: KeyboardRow[];
-}
+import { Screen, KeyboardRow, KeyboardButton } from '@/types/telegram';
 
 interface ReferenceInfo {
   screenId: string;

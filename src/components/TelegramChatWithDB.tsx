@@ -389,8 +389,15 @@ const TelegramChatWithDB = () => {
         .select("pinned_ids")
         .eq("user_id", user.id)
         .single();
-      if (error || !data) return;
-      const arr = (data as { pinned_ids: string[] | null }).pinned_ids;
+
+      if (error) {
+        // If error is PGRST116 (no rows), it's fine, just return empty
+        if (error.code === 'PGRST116') return [];
+        console.error('Error loading pinned:', error);
+        return [];
+      }
+
+      const arr = (data as any)?.pinned_ids || [];
       if (Array.isArray(arr)) {
         setPinnedIds(arr);
         persistPinned(arr);
@@ -406,7 +413,11 @@ const TelegramChatWithDB = () => {
           });
         });
       }
-    } catch (e) { /* ignore */ }
+      return arr;
+    } catch (e) {
+      console.error('Error loading pinned:', e);
+      return [];
+    }
   }, [user, persistPinned]);
 
   const savePinnedCloud = useCallback(async (ids: string[]) => {
@@ -812,7 +823,12 @@ const TelegramChatWithDB = () => {
     const currentScreen = screens.find(s => s.id === currentScreenId);
     const allCircles = findAllCircularReferences([
       ...screens,
-      { id: currentScreenId, name: currentScreen?.name || "", keyboard },
+      {
+        id: currentScreenId,
+        name: currentScreen?.name || "",
+        keyboard,
+        message_content: messageContent
+      },
     ]);
     if (allCircles.length > 0) {
       setDetectedCircularPaths(allCircles);
@@ -835,7 +851,7 @@ const TelegramChatWithDB = () => {
         .from("screens")
         .update({
           message_content: messageContent,
-          keyboard,
+          keyboard: keyboard as any,
         })
         .eq("id", currentScreenId)
         .eq("user_id", user.id);
@@ -1417,7 +1433,7 @@ const TelegramChatWithDB = () => {
             user_id: user.id,
             name: buildImportedName(screen.name, index),
             message_content: screen.message_content,
-            keyboard: ensureKeyboard(screen.keyboard),
+            keyboard: ensureKeyboard(screen.keyboard) as any,
             is_public: false,
           }));
 
@@ -1463,7 +1479,7 @@ const TelegramChatWithDB = () => {
               if (needsUpdate) {
                 return supabase
                   .from("screens")
-                  .update({ keyboard: updatedKeyboard })
+                  .update({ keyboard: updatedKeyboard as any })
                   .eq("id", screen.id);
               }
               return null;
@@ -1940,6 +1956,8 @@ const TelegramChatWithDB = () => {
             navigationHistory={navigationHistory}
             onNavigateBack={navigateBack}
             currentScreenName={screens.find(s => s.id === currentScreenId)?.name}
+            hasUnsavedChanges={hasUnsavedChanges}
+            isOffline={isOffline}
           />
         }
         bottomPanel={

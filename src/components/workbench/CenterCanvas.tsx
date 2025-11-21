@@ -34,9 +34,12 @@ interface CenterCanvasProps {
     navigationHistory: string[];
     onNavigateBack: () => void;
     currentScreenName?: string;
+    // Status
+    hasUnsavedChanges?: boolean;
+    isOffline?: boolean;
 }
 
-export const CenterCanvas: React.FC<CenterCanvasProps> = ({
+export const CenterCanvas = React.memo<CenterCanvasProps>(({
     messageContent,
     setMessageContent,
     keyboard,
@@ -55,6 +58,8 @@ export const CenterCanvas: React.FC<CenterCanvasProps> = ({
     navigationHistory,
     onNavigateBack,
     currentScreenName,
+    hasUnsavedChanges,
+    isOffline,
 }) => {
     return (
         <div className="flex flex-col items-center w-full max-w-md mx-auto h-full">
@@ -72,9 +77,17 @@ export const CenterCanvas: React.FC<CenterCanvasProps> = ({
                     </Button>
 
                     {/* Breadcrumbs / Title */}
-                    <span className="text-xs text-muted-foreground ml-2 font-medium">
-                        {currentScreenName || "未命名模版"}
-                    </span>
+                    <div className="flex items-center gap-2 ml-2">
+                        <span className="text-xs text-muted-foreground font-medium">
+                            {currentScreenName || "未命名模版"}
+                        </span>
+                        {hasUnsavedChanges && (
+                            <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" title="未保存" />
+                        )}
+                        {isOffline && (
+                            <span className="w-2 h-2 rounded-full bg-slate-500" title="离线" />
+                        )}
+                    </div>
                 </div>
 
                 {!isPreviewMode && (
@@ -146,4 +159,6 @@ export const CenterCanvas: React.FC<CenterCanvasProps> = ({
             </div>
         </div>
     );
-};
+});
+
+export default CenterCanvas;

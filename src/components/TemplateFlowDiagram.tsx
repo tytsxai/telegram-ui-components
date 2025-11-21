@@ -23,25 +23,7 @@ import { findAllCircularReferences, generateRelationshipGraph } from '@/lib/refe
 import { supabase } from '@/integrations/supabase/client';
 import dagre from '@dagrejs/dagre';
 
-interface Screen {
-  id: string;
-  name: string;
-  keyboard: KeyboardRow[];
-  message_content: string;
-}
-
-interface KeyboardRow {
-  id: string;
-  buttons: KeyboardButton[];
-}
-
-interface KeyboardButton {
-  id: string;
-  text: string;
-  url?: string;
-  callback_data?: string;
-  linked_screen_id?: string;
-}
+import { Screen, KeyboardRow, KeyboardButton } from '@/types/telegram';
 
 interface TemplateFlowDiagramProps {
   screens: Screen[];
@@ -92,7 +74,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
   const PREF_KEY = 'diagram_pref_mindmap';
   const POS_KEY = `diagram_positions_${userId || 'anon'}`;
   const [useSavedPositions, setUseSavedPositions] = useState<boolean>(false);
-  const savedPositionsRef = useRef<Map<string, {x:number; y:number}>>(new Map());
+  const savedPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const [layoutSavedAt, setLayoutSavedAt] = useState<number | null>(null);
   const [layoutSaving, setLayoutSaving] = useState(false);
   const lastSavedSignatureRef = useRef<string>('');
@@ -418,7 +400,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
 
     // 创建边（连接关系）
     const edgeMap = new Map<string, { count: number; buttons: string[] }>();
-    
+
     screens.forEach(screen => {
       if (hideIsolated) {
         const isolated = !hasIncomingEdge.has(screen.id) && !hasOutgoingEdge.has(screen.id);
@@ -447,7 +429,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
       const [sourceId, targetId] = key.split('->');
       const buttonList = data.buttons.slice(0, 3).join(', ') + (data.buttons.length > 3 ? '...' : '');
       const fullList = data.buttons.join(', ');
-      
+
       edges.push({
         id: key,
         source: sourceId,
@@ -540,11 +522,11 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
       try {
         const ids = positions.map((p) => p.id);
         if (ids.length === 0) {
-          await supabase.from("screen_layouts").delete().eq("user_id", userId);
+          await (supabase.from("screen_layouts" as any) as any).delete().eq("user_id", userId);
         } else {
-          await supabase.from("screen_layouts").delete().eq("user_id", userId).in("screen_id", ids);
+          await (supabase.from("screen_layouts" as any) as any).delete().eq("user_id", userId).in("screen_id", ids);
           const payload = positions.map((p) => ({ user_id: userId, screen_id: p.id, x: p.x, y: p.y }));
-          await supabase.from("screen_layouts").upsert(payload, { onConflict: "user_id,screen_id" });
+          await (supabase.from("screen_layouts" as any) as any).upsert(payload, { onConflict: "user_id,screen_id" });
         }
       } catch (e) { /* ignore cloud errors */ }
     }
@@ -623,8 +605,8 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
     try {
       const raw = localStorage.getItem(POS_KEY);
       if (!raw) return false;
-      const arr = JSON.parse(raw) as Array<{id:string;x:number;y:number}>;
-      const m = new Map<string, {x:number;y:number}>();
+      const arr = JSON.parse(raw) as Array<{ id: string; x: number; y: number }>;
+      const m = new Map<string, { x: number; y: number }>();
       arr.forEach(d => m.set(d.id, { x: d.x, y: d.y }));
       savedPositionsRef.current = m;
       const hasData = m.size > 0;
@@ -643,13 +625,13 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
     try {
       const ids = screens.map(s => s.id);
       if (ids.length === 0) return false;
-      const { data, error } = await supabase
-        .from("screen_layouts")
+      const { data, error } = await (supabase
+        .from("screen_layouts" as any) as any)
         .select("screen_id,x,y")
         .eq("user_id", userId)
         .in("screen_id", ids);
       if (error || !data) return false;
-      const m = new Map<string, {x:number;y:number}>();
+      const m = new Map<string, { x: number; y: number }>();
       const payload: NodePositionPayload[] = [];
       (data as Array<{ screen_id: string; x: number; y: number }>).forEach(row => {
         m.set(row.screen_id, { x: row.x, y: row.y });
@@ -672,7 +654,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
     setUseSavedPositions(false);
     if (userId) {
       try {
-        await supabase.from("screen_layouts").delete().eq("user_id", userId);
+        await (supabase.from("screen_layouts" as any) as any).delete().eq("user_id", userId);
       } catch (e) { /* ignore cloud errors */ }
     }
     setNodes(initialNodes);

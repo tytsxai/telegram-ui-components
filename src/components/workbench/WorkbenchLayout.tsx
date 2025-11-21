@@ -19,6 +19,25 @@ export const WorkbenchLayout: React.FC<WorkbenchLayoutProps> = ({
   bottomPanel,
 }) => {
   const [isBottomCollapsed, setIsBottomCollapsed] = useState(false);
+  const [bottomPanelSize, setBottomPanelSize] = useState(25);
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setIsBottomCollapsed(true);
+        setBottomPanelSize(5); // Small default size for mobile
+      }
+    };
+
+    // Initial check
+    if (window.innerWidth < 768) {
+      setIsBottomCollapsed(true);
+      setBottomPanelSize(5);
+    }
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   return (
     <div className="h-screen w-full bg-background overflow-hidden">
@@ -51,7 +70,7 @@ export const WorkbenchLayout: React.FC<WorkbenchLayoutProps> = ({
 
             {/* Bottom Panel */}
             <ResizablePanel
-              defaultSize={25}
+              defaultSize={bottomPanelSize}
               minSize={5}
               collapsible={true}
               collapsedSize={0}
@@ -61,13 +80,19 @@ export const WorkbenchLayout: React.FC<WorkbenchLayoutProps> = ({
             >
               <div className="flex flex-col h-full">
                 {/* Header for manual toggle if needed, or just rely on drag */}
-                <div className="h-9 flex-shrink-0 flex items-center justify-between px-4 border-b border-border/50 bg-muted/20 select-none">
+                <div
+                  className="h-9 flex-shrink-0 flex items-center justify-between px-4 border-b border-border/50 bg-muted/20 select-none cursor-pointer hover:bg-muted/40 transition-colors"
+                  onClick={() => setIsBottomCollapsed(!isBottomCollapsed)}
+                >
                   <span className="text-xs font-medium text-muted-foreground flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full ${isBottomCollapsed ? 'bg-slate-400' : 'bg-green-500'}`} />
                     系统日志 & JSON 预览
                   </span>
+                  <span className="text-xs text-muted-foreground/50">
+                    {isBottomCollapsed ? '展开' : '收起'}
+                  </span>
                 </div>
-                <div className="flex-1 overflow-y-auto">
+                <div className={`flex-1 overflow-y-auto ${isBottomCollapsed ? 'hidden' : ''}`}>
                   {bottomPanel}
                 </div>
               </div>

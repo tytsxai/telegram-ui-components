@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { X, Settings } from "lucide-react";
 import type { KeyboardRow, KeyboardButton, Screen } from "@/types/telegram";
 import ButtonEditDialog from "./ButtonEditDialog";
@@ -14,7 +14,7 @@ interface InlineKeyboardProps {
   screens?: Screen[];
 }
 
-const InlineKeyboard = ({
+const InlineKeyboard = React.memo(({
   keyboard,
   onButtonTextChange,
   onButtonUpdate,
@@ -98,23 +98,23 @@ const InlineKeyboard = ({
                 className="relative flex-1 group"
                 style={{ maxWidth: `${100 / row.buttons.length}%` }}
               >
-              <button
-                onClick={() => {
-                  if (isPreviewMode && onButtonClick) {
-                    onButtonClick(button);
-                  } else if (!readOnly && !isPreviewMode) {
-                    handleTextEditClick(button.id);
-                  }
-                }}
-                onDoubleClick={() => {
-                  // 双击才能编辑文本，防止误触
-                  if (!readOnly && !isPreviewMode) {
-                    handleTextEditClick(button.id);
-                  }
-                }}
-                className="w-full bg-telegram-button hover:bg-telegram-button/80 text-telegram-buttonText border-none rounded-md py-2 px-3 text-[15px] font-medium transition-colors relative overflow-hidden"
-                title={readOnly ? "仅供预览" : isPreviewMode ? "点击执行操作" : "双击编辑文本"}
-              >
+                <button
+                  onClick={() => {
+                    if (isPreviewMode && onButtonClick) {
+                      onButtonClick(button);
+                    } else if (!readOnly && !isPreviewMode) {
+                      handleTextEditClick(button.id);
+                    }
+                  }}
+                  onDoubleClick={() => {
+                    // 双击才能编辑文本，防止误触
+                    if (!readOnly && !isPreviewMode) {
+                      handleTextEditClick(button.id);
+                    }
+                  }}
+                  className="w-full bg-telegram-button hover:bg-telegram-button/80 text-telegram-buttonText border-none rounded-md py-2 px-3 text-[15px] font-medium transition-colors relative overflow-hidden"
+                  title={readOnly ? "仅供预览" : isPreviewMode ? "点击执行操作" : "双击编辑文本"}
+                >
                   {!readOnly && !isPreviewMode && editingButton === button.id ? (
                     <input
                       type="text"
@@ -159,7 +159,7 @@ const InlineKeyboard = ({
                         title="未配置跳转目标"
                       />
                     )}
-                    
+
                     <button
                       onClick={() => handleEditClick(row, button)}
                       className="absolute -top-2 -right-2 w-5 h-5 bg-primary text-primary-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shadow-md"
@@ -184,6 +184,16 @@ const InlineKeyboard = ({
       </div>
     </>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison for performance
+  if (prevProps.isPreviewMode !== nextProps.isPreviewMode) return false;
+  if (prevProps.readOnly !== nextProps.readOnly) return false;
+  if (prevProps.keyboard !== nextProps.keyboard) return false; // Shallow check for array ref
+
+  // Deep check for keyboard content if refs are different but content might be same?
+  // For now, rely on parent passing new reference on change.
+
+  return true;
+});
 
 export default InlineKeyboard;
