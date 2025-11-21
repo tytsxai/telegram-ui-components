@@ -3,10 +3,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, Network } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-interface Screen {
-  id: string;
-  name: string;
-}
+import { Screen } from "@/types/telegram";
 
 interface CircularPath {
   path: string[];
@@ -53,7 +50,7 @@ export default function CircularReferenceDialog({
           <div className="space-y-3">
             <h4 className="font-semibold text-sm text-foreground">循环路径详情：</h4>
             {circularPaths.map((circular, index) => (
-              <div 
+              <div
                 key={index}
                 className="p-4 border border-destructive/50 bg-destructive/10 rounded-lg space-y-3"
               >

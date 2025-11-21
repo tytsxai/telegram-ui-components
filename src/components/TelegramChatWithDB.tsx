@@ -480,7 +480,6 @@ const TelegramChatWithDB = () => {
     enabled: !isPreviewMode && hasUnsavedChanges,
     onSave: async () => {
       if (currentScreenId && hasUnsavedChanges) {
-        console.log('[AutoSave] 触发自动保存');
         // 静默保存，不显示toast
       }
     },
@@ -1076,11 +1075,7 @@ const TelegramChatWithDB = () => {
       setNavigationHistory(prev => {
         const cleaned = prev.filter(screenId => screenId !== id);
         if (cleaned.length !== prev.length) {
-          console.log('Cleaned deleted screen from navigation history:', {
-            deletedId: id,
-            oldLength: prev.length,
-            newLength: cleaned.length,
-          });
+          // Cleaned deleted screen from navigation history
         }
         return cleaned;
       });
@@ -1684,13 +1679,6 @@ const TelegramChatWithDB = () => {
   };
 
   const handleButtonUpdate = (rowId: string, buttonId: string, updatedButton: KeyboardButton) => {
-    console.log('Button updated:', {
-      id: updatedButton.id,
-      text: updatedButton.text,
-      callback_data: updatedButton.callback_data,
-      url: updatedButton.url,
-      linked_screen_id: updatedButton.linked_screen_id,
-    });
 
     setKeyboard((prev) =>
       prev.map((row) =>
