@@ -98,7 +98,7 @@ const Share = () => {
           user_id: user.id,
           name: `${screen.name} (副本)`,
           message_content: screen.message_content,
-          keyboard: screen.keyboard,
+          keyboard: screen.keyboard as any,
           is_public: false,
           share_token: null,
         }]);
