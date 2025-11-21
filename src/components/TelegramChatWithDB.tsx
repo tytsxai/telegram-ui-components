@@ -30,6 +30,7 @@ import { BottomPanel } from "./workbench/BottomPanel";
 import type { Json } from "@/integrations/supabase/types";
 import { withRetry, logSupabaseError } from "@/lib/supabaseRetry";
 import { readPendingOps, savePendingOps, clearPendingOps } from "@/lib/pendingQueue";
+import { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
 const DEFAULT_MESSAGE = "Welcome to the Telegram UI Builder!\n\nEdit this message directly.\n\nFormatting:\n**bold text** for bold\n`code blocks` for code";
 const DEFAULT_KEYBOARD_TEMPLATE: KeyboardRow[] = [
@@ -505,7 +506,7 @@ const TelegramChatWithDB = () => {
         const pending = readPendingOps(session.user.id);
         if (pending.length > 0) {
           setPendingOpsNotice(true);
-          toast.warning(`有 ${pending.length} 个未同步的保存请求。请重新保存一次。`, { duration: 5000 });
+          toast.warning(`有 ${pending.length} 个未同步的保存请求，正在尝试同步...`, { duration: 5000 });
         }
       }
     });
@@ -614,6 +615,63 @@ const TelegramChatWithDB = () => {
   useEffect(() => {
     loadPinnedCloud();
   }, [loadPinnedCloud]);
+
+  // 尝试重放待补偿操作（在线后）
+  useEffect(() => {
+    const replay = async () => {
+      if (!user) return;
+      const pending = readPendingOps(user.id);
+      if (pending.length === 0) return;
+
+      const stillPending: typeof pending = [];
+      for (const item of pending) {
+        try {
+          if (item.kind === "save") {
+            const insertPayload: TablesInsert<"screens"> = {
+              user_id: user.id,
+              name: item.payload.name,
+              message_content: item.payload.message_content,
+              keyboard: item.payload.keyboard as Json,
+              is_public: false,
+            };
+            const { error } = await withRetry(() =>
+              supabase.from("screens").insert([insertPayload]),
+            );
+            if (error) throw error;
+          } else if (item.kind === "update") {
+            const updatePayload: TablesUpdate<"screens"> = {
+              message_content: item.payload.message_content,
+              keyboard: item.payload.keyboard as Json,
+            };
+            const { error } = await withRetry(() =>
+              supabase
+                .from("screens")
+                .update(updatePayload)
+                .eq("id", item.payload.id)
+                .eq("user_id", user.id),
+            );
+            if (error) throw error;
+          }
+        } catch (e) {
+          stillPending.push(item);
+        }
+      }
+
+      if (stillPending.length === 0) {
+        clearPendingOps(user.id);
+        setPendingOpsNotice(false);
+        toast.success("待同步的保存请求已处理完毕");
+        void loadScreens();
+      } else {
+        savePendingOps(stillPending, user.id);
+        setPendingOpsNotice(true);
+      }
+    };
+
+    if (!isOffline && user) {
+      void replay();
+    }
+  }, [isOffline, user, loadScreens]);
 
   // 校验入口模版，若不存在则回退到置顶或首个模版
   useEffect(() => {
