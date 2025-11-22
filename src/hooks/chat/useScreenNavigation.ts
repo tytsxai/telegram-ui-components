@@ -3,6 +3,9 @@ import { Screen } from '@/types/telegram';
 
 const ENTRY_KEY = "telegram_ui_entry_screen";
 
+export const isEntrySet = (entryId: string | null, screens: Screen[]) =>
+    !!entryId && screens.some((s) => s.id === entryId);
+
 export const useScreenNavigation = (
     screens: Screen[],
     setScreens: (screens: Screen[]) => void,

@@ -824,10 +824,39 @@ const TelegramChatWithDB = () => {
     return Math.random().toString(36).substring(2, 15);
   };
 
+  const hasBrokenLinks = useCallback(
+    (allScreens: Screen[]) => {
+      const ids = new Set(allScreens.map((s) => s.id));
+      for (const screen of allScreens) {
+        for (const row of screen.keyboard ?? []) {
+          for (const btn of row.buttons ?? []) {
+            if (btn.linked_screen_id && !ids.has(btn.linked_screen_id)) {
+              return true;
+            }
+          }
+        }
+      }
+      return false;
+    },
+    [],
+  );
+
   const handleCopyOrShare = async (screenId: string) => {
-    if (!user) return;
-    const screen = screens.find(s => s.id === screenId);
+    if (!user) {
+      toast.error("请先登录");
+      return;
+    }
+    const screen = screens.find((s) => s.id === screenId);
     if (!screen) return;
+
+    if (!isEntrySet(entryScreenId, screens)) {
+      toast.error("请先设置入口模版后再分享");
+      return;
+    }
+    if (hasBrokenLinks(screens)) {
+      toast.error("存在指向已删除模版的按钮，请修复后再分享");
+      return;
+    }
 
     if (screen.is_public && screen.share_token) {
       const url = `${window.location.origin}/share/${screen.share_token}`;
@@ -838,7 +867,7 @@ const TelegramChatWithDB = () => {
       const token = generateShareToken();
       await updateScreen({
         screenId,
-        update: { is_public: true, share_token: token }
+        update: { is_public: true, share_token: token },
       });
       const url = `${window.location.origin}/share/${token}`;
       await navigator.clipboard.writeText(url);
