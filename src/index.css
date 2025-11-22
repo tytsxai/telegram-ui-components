@@ -8,109 +8,105 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 210 20% 18%;
-    --foreground: 0 0% 100%;
+    /* Default to Dark Mode values for that "Tech" feel immediately */
+    --background: 222 47% 11%; /* Deep Blue-Black */
+    --foreground: 210 40% 98%;
 
-    --card: 210 18% 22%;
-    --card-foreground: 0 0% 100%;
+    --card: 217 33% 17%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 210 18% 22%;
-    --popover-foreground: 0 0% 100%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 197 79% 54%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 180 100% 50%; /* Neon Cyan */
+    --primary-foreground: 222 47% 11%;
 
-    --secondary: 210 18% 24%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 210 18% 24%;
-    --muted-foreground: 0 0% 70%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
 
-    --accent: 197 79% 54%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 180 100% 50%;
+    --accent-foreground: 222 47% 11%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 210 18% 24%;
-    --input: 210 18% 24%;
-    --ring: 197 79% 54%;
+    --border: 217 33% 20%;
+    --input: 217 33% 17%;
+    --ring: 180 100% 50%;
 
     --radius: 0.75rem;
 
-    --telegram-blue: 200 100% 42%;
-    --telegram-bg: 210 20% 18%;
-    --telegram-sent: 210 18% 25%;
-    --telegram-received: 210 18% 22%;
-    --telegram-text: 0 0% 100%;
-    --telegram-shadow: 0 0% 0% / 0.2;
-    --telegram-button: 210 18% 22%;
-    --telegram-button-text: 0 0% 100%;
-    --telegram-header: 210 18% 20%;
+    /* Telegram Specifics - Updated for Tech Theme */
+    --telegram-blue: 190 90% 50%;
+    --telegram-bg: 222 47% 11%;
+    --telegram-sent: 217 33% 25%;
+    --telegram-received: 217 33% 17%;
+    --telegram-text: 210 40% 98%;
+    --telegram-shadow: 0 0% 0% / 0.3;
+    --telegram-button: 180 100% 50%;
+    --telegram-button-text: 222 47% 11%;
+    --telegram-header: 222 47% 13%;
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 222 47% 10%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 180 100% 50%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 20%;
+    --sidebar-ring: 180 100% 50%;
   }
 
   .dark {
-    --background: 212 16% 12%;
-    --foreground: 0 0% 100%;
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
 
-    --card: 216 18% 16%;
-    --card-foreground: 0 0% 100%;
+    --card: 217 33% 17%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 216 18% 16%;
-    --popover-foreground: 0 0% 100%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 197 79% 54%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 180 100% 50%;
+    --primary-foreground: 222 47% 11%;
 
-    --secondary: 216 18% 20%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 216 18% 20%;
-    --muted-foreground: 0 0% 70%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
 
-    --accent: 197 79% 54%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 180 100% 50%;
+    --accent-foreground: 222 47% 11%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 216 18% 20%;
-    --input: 216 18% 20%;
-    --ring: 197 79% 54%;
+    --border: 217 33% 20%;
+    --input: 217 33% 17%;
+    --ring: 180 100% 50%;
     
-    --telegram-blue: 200 100% 42%;
-    --telegram-bg: 212 16% 12%;
-    --telegram-sent: 200 100% 42%;
-    --telegram-received: 216 18% 18%;
-    --telegram-text: 0 0% 100%;
-    --telegram-shadow: 0 0% 0% / 0.2;
-    --telegram-button: 216 18% 18%;
-    --telegram-button-text: 200 100% 50%;
-    --telegram-header: 216 18% 16%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --telegram-blue: 190 90% 50%;
+    --telegram-bg: 222 47% 11%;
+    --telegram-sent: 217 33% 25%;
+    --telegram-received: 217 33% 17%;
+    --telegram-text: 210 40% 98%;
+    --telegram-shadow: 0 0% 0% / 0.3;
+    --telegram-button: 180 100% 50%;
+    --telegram-button-text: 222 47% 11%;
+    --telegram-header: 222 47% 13%;
+    
+    --sidebar-background: 222 47% 10%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 180 100% 50%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 20%;
+    --sidebar-ring: 180 100% 50%;
   }
 }
 
@@ -121,11 +117,11 @@ All colors MUST be HSL.
 
   body {
     @apply text-foreground;
-    background:
-      radial-gradient(circle at 20% 25%, hsla(200, 90%, 60%, 0.25), transparent 35%),
-      radial-gradient(circle at 80% 5%, hsla(320, 70%, 60%, 0.18), transparent 32%),
-      linear-gradient(140deg, hsl(220 18% 18%), hsl(210 22% 12%)),
-      repeating-linear-gradient(0deg, hsla(0, 0%, 100%, 0.03), hsla(0, 0%, 100%, 0.03) 1px, transparent 1px, transparent 12px),
-      repeating-linear-gradient(90deg, hsla(0, 0%, 100%, 0.02), hsla(0, 0%, 100%, 0.02) 1px, transparent 1px, transparent 12px);
+    background-color: hsl(var(--background));
+    background-image: 
+      radial-gradient(circle at 15% 50%, hsla(180, 100%, 50%, 0.08), transparent 25%),
+      radial-gradient(circle at 85% 30%, hsla(260, 100%, 60%, 0.08), transparent 25%),
+      linear-gradient(to bottom right, hsl(222, 47%, 11%), hsl(222, 47%, 8%));
+    background-attachment: fixed;
   }
 }
