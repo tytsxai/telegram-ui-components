@@ -54,7 +54,7 @@ export const WorkbenchLayout: React.FC<WorkbenchLayoutProps> = ({
           defaultSize={20}
           minSize={15}
           maxSize={25}
-          className="bg-card/50 backdrop-blur-sm border-r border-border hidden md:block"
+          className="bg-card/40 backdrop-blur-xl border-r border-white/5 hidden md:block"
         >
           <div className="h-full overflow-y-auto">
             {leftPanel}
@@ -83,7 +83,7 @@ export const WorkbenchLayout: React.FC<WorkbenchLayoutProps> = ({
               collapsedSize={0}
               onCollapse={() => setIsBottomCollapsed(true)}
               onExpand={() => setIsBottomCollapsed(false)}
-              className={`bg-card/50 backdrop-blur-sm border-t border-border flex flex-col transition-all duration-300 ${isBottomCollapsed ? 'min-h-[36px]' : ''}`}
+              className={`bg-card/40 backdrop-blur-xl border-t border-white/5 flex flex-col transition-all duration-300 ${isBottomCollapsed ? 'min-h-[36px]' : ''}`}
             >
               <div className="flex flex-col h-full">
                 {/* Header for manual toggle if needed, or just rely on drag */}
@@ -114,7 +114,7 @@ export const WorkbenchLayout: React.FC<WorkbenchLayoutProps> = ({
           defaultSize={20}
           minSize={15}
           maxSize={25}
-          className="bg-card/50 backdrop-blur-sm border-l border-border hidden lg:block"
+          className="bg-card/40 backdrop-blur-xl border-l border-white/5 hidden lg:block"
         >
           <div className="h-full overflow-y-auto">
             {rightPanel}

@@ -72,12 +72,12 @@ export const CenterCanvas = React.memo<CenterCanvasProps>(({
         if (!status || status.state === "idle") return null;
         const color =
             status.state === "success" ? "bg-emerald-500/20 text-emerald-700 border-emerald-500/50" :
-            status.state === "error" ? "bg-destructive/10 text-destructive border-destructive/50" :
-            "bg-amber-500/10 text-amber-700 border-amber-500/50";
+                status.state === "error" ? "bg-destructive/10 text-destructive border-destructive/50" :
+                    "bg-amber-500/10 text-amber-700 border-amber-500/50";
         const text =
             status.state === "success" ? `${label}已同步` :
-            status.state === "error" ? `${label}失败` :
-            `${label}中`;
+                status.state === "error" ? `${label}失败` :
+                    `${label}中`;
         return (
             <span
                 className={`px-2 py-0.5 text-[10px] rounded-full border inline-flex items-center gap-1 ${color}`}
@@ -153,7 +153,9 @@ export const CenterCanvas = React.memo<CenterCanvasProps>(({
             )}
 
             {/* Phone Simulator */}
-            <div className="w-full bg-telegram-bg shadow-2xl rounded-3xl overflow-hidden border-8 border-slate-800 ring-1 ring-slate-900/10">
+            <div className="w-full bg-telegram-bg shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-[2.5rem] overflow-hidden border-[10px] border-slate-900 ring-1 ring-white/10 relative">
+                {/* Glass Reflection Overlay */}
+                <div className="absolute inset-0 pointer-events-none z-50 bg-gradient-to-tr from-white/5 to-transparent opacity-50 rounded-[2rem]" />
                 {/* Status Bar Mockup */}
                 <div className="bg-telegram-header h-8 w-full" />
 

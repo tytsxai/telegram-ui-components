@@ -20,11 +20,11 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
   const escapeHtml = useCallback(
     (str: string) =>
       str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;"),
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;"),
     [],
   );
 
@@ -157,19 +157,19 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
   const saveCursorPosition = () => {
     const selection = window.getSelection();
     if (!selection || !selection.rangeCount || !editableRef.current) return null;
-    
+
     const range = selection.getRangeAt(0);
     const preCaretRange = range.cloneRange();
     preCaretRange.selectNodeContents(editableRef.current);
     preCaretRange.setEnd(range.endContainer, range.endOffset);
     const offset = preCaretRange.toString().length;
-    
+
     return offset;
   };
 
   const restoreCursorPosition = (offset: number) => {
     if (!editableRef.current) return;
-    
+
     const selection = window.getSelection();
     const range = document.createRange();
     let charCount = 0;
@@ -257,7 +257,7 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
 
   return (
     <div>
-      <div className="bg-telegram-sent text-white rounded-2xl rounded-br-md px-3 py-2 shadow-sm">
+      <div className="bg-gradient-to-br from-telegram-sent to-primary/10 text-white rounded-2xl rounded-br-md px-3 py-2 shadow-[0_4px_15px_rgba(0,0,0,0.3)] ring-1 ring-white/5 backdrop-blur-sm">
         <div
           ref={editableRef}
           contentEditable={!readOnly}
@@ -271,23 +271,23 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
         />
         <div className="flex items-center justify-end gap-1 mt-1">
           <span className="text-[11px] text-white/70 font-telegram">12:34</span>
-            <svg className="w-4 h-4 text-white/70" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M5.5 8.5L7 10L10.5 6.5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M9.5 8.5L11 10L14.5 6.5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
+          <svg className="w-4 h-4 text-white/70" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M5.5 8.5L7 10L10.5 6.5"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M9.5 8.5L11 10L14.5 6.5"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
       </div>
     </div>
   );

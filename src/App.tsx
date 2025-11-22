@@ -118,7 +118,7 @@ const RepoBadge = () => {
       aria-label="View the project on GitHub"
       onPointerDown={handlePointerDown}
       onClick={handleClick}
-      className="fixed z-50 flex h-11 w-11 items-center justify-center rounded-full bg-slate-900/85 text-white shadow-lg shadow-black/30 ring-1 ring-white/10 backdrop-blur hover:-translate-y-0.5 hover:bg-slate-900/95 transition-transform duration-150 cursor-grab active:cursor-grabbing"
+      className="fixed z-50 flex h-12 w-12 items-center justify-center rounded-full bg-background/60 text-primary shadow-[0_0_20px_hsl(var(--primary)/0.3)] ring-1 ring-primary/50 backdrop-blur-xl hover:-translate-y-1 hover:shadow-[0_0_30px_hsl(var(--primary)/0.6)] hover:bg-background/80 hover:text-primary-foreground transition-all duration-300 cursor-grab active:cursor-grabbing"
       style={{ left: pos.x, top: pos.y }}
     >
       <Github className="h-5 w-5" />
