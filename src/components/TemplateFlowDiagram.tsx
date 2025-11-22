@@ -34,6 +34,8 @@ interface TemplateFlowDiagramProps {
   onScreenClick?: (screenId: string) => void;
   userId?: string;
   onLayoutSync?: (status: SyncStatus) => void;
+  onSetEntry?: (screenId: string) => void;
+  onDeleteScreen?: (screenId: string) => void;
 }
 
 type NodePositionPayload = { id: string; x: number; y: number };
@@ -60,6 +62,8 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
   onScreenClick,
   userId,
   onLayoutSync,
+  onSetEntry,
+  onDeleteScreen,
 }) => {
   const dataAccess = useMemo(() => new SupabaseDataAccess(undefined, { userId }), [userId]);
   const layoutSyncRef = useRef(onLayoutSync);
@@ -144,108 +148,6 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
       });
     });
 
-    // 使用结构化布局或心智图布局
-    const levelIndexMap = new Map<string, { level: number; index: number; side?: 'left' | 'right' }>();
-    if (!mindMapMode) {
-      const { nodes: gNodes } = generateRelationshipGraph(screens);
-      const levelGroups = new Map<number, string[]>();
-      gNodes.forEach(n => {
-        const list = levelGroups.get(n.level) || [];
-        list.push(n.id);
-        levelGroups.set(n.level, list);
-      });
-      const sortedLevels = Array.from(levelGroups.keys()).sort((a, b) => a - b);
-      sortedLevels.forEach(level => {
-        const ids = (levelGroups.get(level) || []).slice().sort((a, b) => {
-          const an = screenMap.get(a)?.name || '';
-          const bn = screenMap.get(b)?.name || '';
-          return an.localeCompare(bn, 'zh');
-        });
-        ids.forEach((id, idx) => levelIndexMap.set(id, { level, index: idx }));
-      });
-    } else {
-      // 心智图布局：以 root 为中心，左右分支
-      // root 选择：currentScreenId > 入口（无入有出）> 第一个 screen
-      let rootId: string | undefined = currentScreenId;
-      if (!rootId) {
-        const entries = screens.filter(s => !incomingAll.has(s.id) && outgoingAll.get(s.id)?.size);
-        rootId = entries[0]?.id || screens[0]?.id;
-      }
-      if (rootId) {
-        const visited = new Set<string>();
-        const parent = new Map<string, string>();
-        const side = new Map<string, 'left' | 'right'>();
-        const level = new Map<string, number>();
-        const q: string[] = [rootId];
-        visited.add(rootId);
-        level.set(rootId, 0);
-        let toggleRight = true; // 第一层左右交替
-        while (q.length) {
-          const id = q.shift()!;
-          const lv = level.get(id) || 0;
-          const children = Array.from(outgoingAll.get(id) || []);
-          for (const ch of children) {
-            if (!visited.has(ch)) {
-              visited.add(ch);
-              parent.set(ch, id);
-              level.set(ch, lv + 1);
-              // 侧边：第一层交替，其余继承父侧
-              if (lv === 0) {
-                side.set(ch, toggleRight ? 'right' : 'left');
-                toggleRight = !toggleRight;
-              } else {
-                side.set(ch, side.get(id) || 'right');
-              }
-              q.push(ch);
-            }
-          }
-        }
-        // 分层收集
-        const groupsL = new Map<number, string[]>();
-        const groupsR = new Map<number, string[]>();
-        screens.forEach(s => {
-          if (!level.has(s.id)) return; // 未连通暂时忽略
-          const lv = level.get(s.id)!;
-          const sd = lv === 0 ? undefined : side.get(s.id);
-          if (lv === 0) {
-            levelIndexMap.set(s.id, { level: 0, index: 0 });
-            return;
-          }
-          if (sd === 'left') {
-            const arr = groupsL.get(lv) || [];
-            arr.push(s.id);
-            groupsL.set(lv, arr);
-          } else {
-            const arr = groupsR.get(lv) || [];
-            arr.push(s.id);
-            groupsR.set(lv, arr);
-          }
-        });
-        // 排序并写入索引
-        const levels = new Set<number>([...groupsL.keys(), ...groupsR.keys()]);
-        Array.from(levels).sort((a, b) => a - b).forEach(lv => {
-          const leftIds = (groupsL.get(lv) || []).slice().sort((a, b) => (screenMap.get(a)?.name || '').localeCompare(screenMap.get(b)?.name || '', 'zh'));
-          const rightIds = (groupsR.get(lv) || []).slice().sort((a, b) => (screenMap.get(a)?.name || '').localeCompare(screenMap.get(b)?.name || '', 'zh'));
-          leftIds.forEach((id, idx) => levelIndexMap.set(id, { level: lv, index: idx, side: 'left' }));
-          rightIds.forEach((id, idx) => levelIndexMap.set(id, { level: lv, index: idx, side: 'right' }));
-        });
-      } else {
-        // 回退到普通布局
-        const { nodes: gNodes } = generateRelationshipGraph(screens);
-        const levelGroups = new Map<number, string[]>();
-        gNodes.forEach(n => {
-          const list = levelGroups.get(n.level) || [];
-          list.push(n.id);
-          levelGroups.set(n.level, list);
-        });
-        const sorted = Array.from(levelGroups.keys()).sort((a, b) => a - b);
-        sorted.forEach(levelVal => {
-          const ids = (levelGroups.get(levelVal) || []).slice();
-          ids.forEach((id, idx) => levelIndexMap.set(id, { level: levelVal, index: idx }));
-        });
-      }
-    }
-
     // 计算邻接表，供“只看当前相关”过滤
     const outgoing = new Map<string, Set<string>>();
     const incoming = new Map<string, Set<string>>();
@@ -284,7 +186,6 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
       visit(currentScreenId, 'in');
     }
 
-    // 创建节点
     // 预先计算搜索匹配
     const lowerQuery = searchQuery.trim().toLowerCase();
     const matched = new Set<string>();
@@ -294,6 +195,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
       });
     }
 
+    // 简化布局：初始全部设为 (0,0)，依靠 runSmartArrange 或已保存位置
     screens.forEach((screen) => {
       if (hideIsolated) {
         const isolated = !hasIncomingEdge.has(screen.id) && !hasOutgoingEdge.has(screen.id);
@@ -313,32 +215,8 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
         0
       );
 
-      // 布局：按层级和层内序号布置坐标
-      const li = levelIndexMap.get(screen.id) || { level: 0, index: 0 };
       const baseW = 220;
-      const baseH = 110;
       const nodeW = Math.round(baseW * nodeScale);
-      const nodeH = Math.round(baseH * nodeScale);
-      const xGap = Math.round(280 * nodeScale);
-      const yGap = Math.round(160 * nodeScale);
-      let x: number;
-      let y: number;
-      if (mindMapMode) {
-        if (li.level === 0) {
-          x = 0; y = 0;
-        } else {
-          const side = li.side || 'right';
-          const sideFactor = side === 'right' ? 1 : -1;
-          x = sideFactor * li.level * xGap;
-          // 层内垂直居中展开
-          const siblings = Array.from(levelIndexMap.entries()).filter(([, v]) => v.level === li.level && v.side === side).length;
-          const centerIndex = (siblings - 1) / 2;
-          y = (li.index - centerIndex) * yGap;
-        }
-      } else {
-        x = orientation === 'horizontal' ? li.level * xGap : li.index * xGap;
-        y = orientation === 'horizontal' ? li.index * yGap : li.level * yGap;
-      }
 
       let nodeColor = 'hsl(var(--primary))';
       let nodeLabel = screen.name;
@@ -398,7 +276,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
             </div>
           ),
         },
-        position: saved ? { x: saved.x, y: saved.y } : { x, y },
+        position: saved ? { x: saved.x, y: saved.y } : { x: 0, y: 0 },
         style: {
           background: 'hsl(var(--card))',
           border: `2px ${nodeBorderStyle} ${isMatched ? 'hsl(var(--primary))' : nodeColor}`,
@@ -458,7 +336,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
         id: key,
         source: sourceId,
         target: targetId,
-        type: 'smoothstep',
+        type: edgeStraight ? 'default' : 'smoothstep',
         pathOptions: { borderRadius: 20 },
         animated: sourceId === currentScreenId || isEdgeHighlighted,
         label: truncatedLabel,
@@ -912,14 +790,15 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
         onOpenChange(false);
       }
     } else if (action === 'entry') {
-      // Placeholder for setting entry point
-      console.log('Set as entry:', nodeId);
-      // You would typically call an API or prop here
+      if (onSetEntry) {
+        onSetEntry(nodeId);
+        // Optional: Show toast or visual feedback
+      }
     } else if (action === 'delete') {
       if (confirm('确定要删除这个模版吗？此操作不可撤销。')) {
-        // Placeholder for delete
-        console.log('Delete:', nodeId);
-        // You would typically call an API or prop here
+        if (onDeleteScreen) {
+          onDeleteScreen(nodeId);
+        }
       }
     }
   };
