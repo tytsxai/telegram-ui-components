@@ -613,6 +613,8 @@ const TelegramChatWithDB = () => {
             }
             toast.success(`✅ 已跳转到: ${screens.find(s => s.id === screenId)?.name}`);
           }}
+          onSetEntry={handleSetEntry}
+          onDeleteScreen={deleteScreen}
         />
 
         <CircularReferenceDialog
