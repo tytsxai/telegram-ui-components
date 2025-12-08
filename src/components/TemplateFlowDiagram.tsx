@@ -14,7 +14,7 @@ import ReactFlow, {
   Connection,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
@@ -1109,6 +1109,9 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
               </Button>
             </div>
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            可视化查看模版节点的入口、置顶、循环关系并调整布局。
+          </DialogDescription>
         </DialogHeader>
         <div className="flex-1 relative overflow-hidden" ref={diagramRef}>
           <ReactFlow
