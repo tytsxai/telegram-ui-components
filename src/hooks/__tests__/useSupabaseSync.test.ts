@@ -481,6 +481,28 @@ describe("useSupabaseSync", () => {
     );
   });
 
+  it("defaults queue telemetry timestamps and omits retry delay copy when missing", () => {
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1234);
+    const { result } = renderHook(() => useSupabaseSync(mockUser));
+    act(() => {
+      result.current.queueReplayCallbacks.onItemFailure?.(
+        {
+          id: "pending-4",
+          kind: "update",
+          attempts: 2,
+          failures: [],
+        } as any,
+        "offline",
+        { attempt: 2 },
+      );
+    });
+
+    const last = vi.mocked(publishSyncEvent).mock.calls.at(-1)?.[0];
+    expect(last?.status?.at).toBe(1234);
+    expect(String(last?.status?.message)).not.toContain("retrying in");
+    nowSpy.mockRestore();
+  });
+
   it("assigns request ids for queue success without prior failures", () => {
     const { result } = renderHook(() => useSupabaseSync(mockUser));
     act(() => {
@@ -533,6 +555,40 @@ describe("useSupabaseSync", () => {
     });
     expect(caught).toEqual("bad save");
     expect(result.current.shareSyncStatus.message).toBe("保存失败");
+  });
+
+  it("uses fallback sync messages when update/delete operations fail with non-Error values", async () => {
+    const { result } = renderHook(() => useSupabaseSync(mockUser));
+    mockDataAccess.updateScreen.mockRejectedValueOnce("bad update");
+    mockDataAccess.deleteScreens.mockRejectedValueOnce("bad delete").mockRejectedValueOnce("bulk fail");
+
+    act(() => {
+      result.current.setScreens([baseScreen]);
+    });
+
+    let updateError: unknown;
+    await act(async () => {
+      try {
+        await result.current.updateScreen({ screenId: "screen-1", update: { message_content: "x", keyboard: [] } });
+      } catch (e) {
+        updateError = e;
+      }
+    });
+    expect(updateError).toEqual("bad update");
+
+    await act(async () => {
+      await result.current.deleteScreen("screen-1");
+    });
+
+    await act(async () => {
+      await result.current.deleteAllScreens();
+    });
+
+    const messages = vi.mocked(publishSyncEvent).mock.calls
+      .map(call => call[0]?.status?.message)
+      .filter((msg): msg is string => Boolean(msg));
+
+    expect(messages).toEqual(expect.arrayContaining(["更新失败", "删除失败", "批量删除失败"]));
   });
 
   it("handles empty pin rows without crashing", async () => {
