@@ -279,7 +279,7 @@ export const useBuilderStore = () => {
       if (button.linked_screen_id) {
         handleNavigateToScreen(button.linked_screen_id);
       } else if (button.url) {
-        window.open(button.url, "_blank");
+        window.open(button.url, "_blank", "noopener,noreferrer");
       } else {
         toast.info(`Callback: ${button.callback_data}`);
       }
@@ -627,6 +627,13 @@ export const useBuilderStore = () => {
 
     if (isOffline) {
       queueUpdateOperation(updatePayload);
+      setScreens((prev) =>
+        prev.map((s) =>
+          s.id === currentScreenId
+            ? ({ ...s, name: renameValue } as Screen)
+            : s,
+        ),
+      );
       setRenameDialogOpen(false);
       return;
     }
@@ -981,8 +988,14 @@ export const useBuilderStore = () => {
         toast.error("未能生成分享链接");
         return;
       }
-      await navigator.clipboard.writeText(buildShareUrl(tokenToUse));
-      toast.success(result && result !== entry ? "公开链接已创建并复制" : "链接已复制");
+      const shareUrl = buildShareUrl(tokenToUse);
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success(result && result !== entry ? "公开链接已创建并复制" : "链接已复制");
+      } catch (copyError) {
+        console.error("Clipboard write failed", copyError);
+        toast.error("分享链接已生成，复制失败，请手动复制", { description: shareUrl });
+      }
       completeOnboardingStep("share");
     } catch (error) {
       console.error("Error generating share link:", error);
@@ -1005,8 +1018,14 @@ export const useBuilderStore = () => {
         return next;
       }, { action: "share_rotate", targetId: entry.id });
       const tokenToUse = updated?.share_token ?? token;
-      await navigator.clipboard.writeText(buildShareUrl(tokenToUse));
-      toast.success("链接已刷新，旧链接已失效");
+      const shareUrl = buildShareUrl(tokenToUse);
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success("链接已刷新，旧链接已失效");
+      } catch (copyError) {
+        console.error("Clipboard write failed", copyError);
+        toast.error("链接已刷新，复制失败，请手动复制", { description: shareUrl });
+      }
       completeOnboardingStep("share");
     } catch (error) {
       console.error("Error rotating share link:", error);
