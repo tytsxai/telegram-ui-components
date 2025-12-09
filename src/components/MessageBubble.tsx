@@ -213,11 +213,29 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
     [onContentChange, htmlToMarkup],
   );
 
+  const insertPlainText = (text: string) => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || !editableRef.current) return;
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+    const frag = document.createDocumentFragment();
+    const lines = text.split("\n");
+    lines.forEach((line, idx) => {
+      frag.appendChild(document.createTextNode(line));
+      if (idx !== lines.length - 1) {
+        frag.appendChild(document.createElement('br'));
+      }
+    });
+    range.insertNode(frag);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  };
+
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
     const text = e.clipboardData.getData('text/plain');
-    const html = escapeHtml(text).replace(/\n/g, '<br>');
-    document.execCommand('insertHTML', false, html);
+    insertPlainText(text);
 
     // Normalize and sync after paste
     setTimeout(() => {
@@ -227,7 +245,7 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
       const formatted = formatMessage(markupNow);
       editableRef.current.innerHTML = formatted;
       lastContentRef.current = markupNow;
-      if (onContentChange) onContentChange(markupNow);
+      if (onContentChange) onContentChange(markupNow || "");
     }, 0);
   };
 
@@ -255,11 +273,19 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
   };
 
 
+  const formattingHintId = "message-bubble-formatting-hint";
+  const formattingHintSrId = "message-bubble-formatting-hint-sr";
+
   return (
     <div>
       <div className="bg-telegram-sent text-foreground rounded-2xl rounded-br-md px-3 py-2 shadow-sm">
         <div
           ref={editableRef}
+          role="textbox"
+          aria-label="Message body"
+          aria-multiline="true"
+          aria-describedby={`${formattingHintId} ${formattingHintSrId}`}
+          tabIndex={0}
           contentEditable={!readOnly}
           onInput={handleInput}
           onPaste={handlePaste}
@@ -289,6 +315,36 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
           </svg>
         </div>
       </div>
+      <p id={formattingHintSrId} className="sr-only">
+        按 Enter 插入空行，Shift+Enter 插入单行；支持粗体、斜体、代码、链接格式。
+      </p>
+
+      <details className="mt-2 text-[11px] text-muted-foreground">
+        <summary className="cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-foreground/40 rounded px-1">
+          格式提示
+        </summary>
+        <div
+          id={formattingHintId}
+          className="mt-1 flex flex-col gap-1 rounded border border-border/50 bg-gradient-to-br from-muted/90 via-muted/60 to-muted/40 dark:from-muted/60 dark:via-muted/50 dark:to-muted/40 px-3 py-2 text-foreground/90 shadow-sm"
+        >
+          <div className="flex items-center gap-2 text-[11px] font-semibold tracking-wide uppercase text-foreground/80">
+            <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-foreground/10 text-[10px]">i</span>
+            格式与快捷键
+          </div>
+          <ul className="list-disc list-inside space-y-1 leading-relaxed text-[11px]">
+            <li className="flex flex-wrap gap-1">
+              <span className="inline-flex items-center gap-1 rounded bg-foreground/5 px-1 py-[2px] text-foreground">Enter</span>
+              <span className="text-foreground/80">空一行</span>
+              <span className="text-foreground/60">·</span>
+              <span className="inline-flex items-center gap-1 rounded bg-foreground/5 px-1 py-[2px] text-foreground">Shift+Enter</span>
+              <span className="text-foreground/80">单行换行</span>
+            </li>
+            <li className="flex flex-wrap gap-1 text-foreground/85">
+              支持 <span className="font-semibold">**粗体**</span> / <span className="italic">_斜体_</span> / <code className="rounded bg-foreground/10 px-1 py-[1px] text-[10px]">`代码`</code> / <span className="underline decoration-dashed">[文本](url)</span>
+            </li>
+          </ul>
+        </div>
+      </details>
     </div>
   );
 });

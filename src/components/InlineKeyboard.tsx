@@ -48,6 +48,31 @@ const InlineKeyboard = React.memo(({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedButton, setSelectedButton] = useState<{ row: KeyboardRow; button: KeyboardButton } | null>(null);
 
+  const focusButton = (rowId: string, buttonId: string) => {
+    requestAnimationFrame(() => {
+      document.getElementById(`kbd-${rowId}-${buttonId}`)?.focus();
+    });
+  };
+
+  const getNextFocusAfterDelete = (rowId: string, buttonId: string) => {
+    const rowIndex = keyboard.findIndex((r) => r.id === rowId);
+    const row = keyboard[rowIndex];
+    if (!row) return null;
+    const idx = row.buttons.findIndex((b) => b.id === buttonId);
+    const next = row.buttons[idx + 1];
+    if (next) return { rowId, buttonId: next.id };
+    const prev = row.buttons[idx - 1];
+    if (prev) return { rowId, buttonId: prev.id };
+    const nextRow = keyboard[rowIndex + 1];
+    if (nextRow?.buttons[0]) return { rowId: nextRow.id, buttonId: nextRow.buttons[0].id };
+    const prevRow = keyboard[rowIndex - 1];
+    if (prevRow?.buttons.length) {
+      const last = prevRow.buttons[prevRow.buttons.length - 1];
+      return { rowId: prevRow.id, buttonId: last.id };
+    }
+    return null;
+  };
+
   useEffect(() => {
     if (!selectedButton) return;
     const latestRow = keyboard.find((row) => row.id === selectedButton.row.id);
@@ -85,7 +110,10 @@ const InlineKeyboard = React.memo(({
     document.execCommand('insertText', false, text);
   };
 
-  const handleEditClick = (row: KeyboardRow, button: KeyboardButton) => {
+  const handleEditClick = (row: KeyboardRow, button: KeyboardButton, trigger?: HTMLButtonElement | null) => {
+    if (trigger) {
+      lastDialogTrigger.current = trigger;
+    }
     setSelectedButton({ row, button });
     setEditDialogOpen(true);
   };
@@ -100,8 +128,14 @@ const InlineKeyboard = React.memo(({
     setEditDialogOpen(open);
     if (!open) {
       setSelectedButton(null);
+      // Restore focus to the last trigger for accessibility
+      if (lastDialogTrigger?.current) {
+        lastDialogTrigger.current.focus();
+      }
     }
   };
+
+  const lastDialogTrigger = React.useRef<HTMLButtonElement | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -162,20 +196,26 @@ const InlineKeyboard = React.memo(({
         )}
       >
         <SortableContext items={row.buttons.map((b) => `btn:${row.id}_${b.id}`)} strategy={horizontalListSortingStrategy}>
-          <div className="flex gap-[2px]">
-            {row.buttons.map((button) => (
-              <SortableButton key={button.id} row={row} button={button} />
+          <div className="flex gap-[2px]" role="list">
+            {row.buttons.map((button, index) => (
+              <SortableButton key={button.id} row={row} button={button} index={index} />
             ))}
           </div>
         </SortableContext>
         {!readOnly && rowHasTooManyButtons && (
-          <div className="text-[11px] text-destructive px-1 pb-1">每行最多 {MAX_BUTTONS_PER_ROW} 个按钮</div>
+          <div
+            className="text-[11px] text-destructive px-1 pb-1"
+            role="status"
+            aria-live="polite"
+          >
+            每行最多 {MAX_BUTTONS_PER_ROW} 个按钮
+          </div>
         )}
       </div>
     );
   };
 
-  const SortableButton = ({ row, button }: { row: KeyboardRow; button: KeyboardButton }) => {
+  const SortableButton = ({ row, button, index }: { row: KeyboardRow; button: KeyboardButton; index: number }) => {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
       id: `btn:${row.id}_${button.id}`,
     });
@@ -205,6 +245,72 @@ const InlineKeyboard = React.memo(({
         <button
           {...attributes}
           {...listeners}
+          onKeyDown={(e) => {
+            if (editingButton) return; // let input handle
+            const currentRowIndex = keyboard.findIndex((r) => r.id === row.id);
+            const currentBtnIndex = row.buttons.findIndex((b) => b.id === button.id);
+            if (e.key === 'Tab') {
+              const isShift = e.shiftKey;
+              if (isShift) {
+                const prev = row.buttons[currentBtnIndex - 1];
+                if (prev) {
+                  e.preventDefault();
+                  focusButton(row.id, prev.id);
+                } else if (currentRowIndex > 0) {
+                  const prevRow = keyboard[currentRowIndex - 1];
+                  const target = prevRow.buttons[prevRow.buttons.length - 1];
+                  if (target) {
+                    e.preventDefault();
+                    focusButton(prevRow.id, target.id);
+                  }
+                }
+              } else {
+                const next = row.buttons[currentBtnIndex + 1];
+                if (next) {
+                  e.preventDefault();
+                  focusButton(row.id, next.id);
+                } else if (keyboard[currentRowIndex + 1]?.buttons[0]) {
+                  e.preventDefault();
+                  const target = keyboard[currentRowIndex + 1].buttons[0];
+                  focusButton(keyboard[currentRowIndex + 1].id, target.id);
+                }
+              }
+            } else if (e.key === 'ArrowRight') {
+              e.preventDefault();
+              const next = row.buttons[currentBtnIndex + 1];
+              if (next) document.getElementById(`kbd-${row.id}-${next.id}`)?.focus();
+            } else if (e.key === 'ArrowLeft') {
+              e.preventDefault();
+              const prev = row.buttons[currentBtnIndex - 1];
+              if (prev) document.getElementById(`kbd-${row.id}-${prev.id}`)?.focus();
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              const prevRow = keyboard[currentRowIndex - 1];
+              if (prevRow && prevRow.buttons[currentBtnIndex]) {
+                document.getElementById(`kbd-${prevRow.id}-${prevRow.buttons[currentBtnIndex].id}`)?.focus();
+              }
+            } else if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              const nextRow = keyboard[currentRowIndex + 1];
+              if (nextRow && nextRow.buttons[currentBtnIndex]) {
+                document.getElementById(`kbd-${nextRow.id}-${nextRow.buttons[currentBtnIndex].id}`)?.focus();
+              }
+            } else if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              if (isPreviewMode && onButtonClick) {
+                onButtonClick(button);
+              } else if (!readOnly && !isPreviewMode) {
+                handleTextEditClick(button.id);
+              }
+            } else if (e.key === 'Escape') {
+              setEditingButton(null);
+            }
+          }}
+          id={`kbd-${row.id}-${button.id}`}
+          tabIndex={0}
+          role="button"
+          aria-label={`Inline keyboard button ${index + 1}: ${button.text || "(empty)"}`}
+          aria-pressed={false}
           className={clsx(
             "w-full bg-telegram-button hover:bg-telegram-button/80 text-telegram-buttonText border-none rounded-md py-2 px-3 text-[15px] font-medium transition-colors relative overflow-hidden",
             callbackTooLong && "ring-1 ring-destructive/60"
@@ -226,6 +332,7 @@ const InlineKeyboard = React.memo(({
                   setEditingButton(null);
                 }
               }}
+              aria-label="Edit button text"
               autoFocus
               className="w-full bg-transparent outline-none text-center"
               maxLength={30}
@@ -234,7 +341,11 @@ const InlineKeyboard = React.memo(({
             <span className="truncate block">{button.text}</span>
           )}
           {callbackTooLong && (
-            <span className="absolute bottom-1 right-1 text-[10px] text-destructive bg-white/90 rounded px-1 shadow-sm">
+            <span
+              className="absolute bottom-1 right-1 text-[10px] text-destructive bg-white/90 rounded px-1 shadow-sm"
+              role="status"
+              aria-live="polite"
+            >
               超过 64B
             </span>
           )}
@@ -264,7 +375,7 @@ const InlineKeyboard = React.memo(({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleEditClick(row, button);
+                  handleEditClick(row, button, e.currentTarget);
                 }}
                 className="w-6 h-6 bg-white text-black rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform border border-gray-200"
                 aria-label="Edit button"
@@ -276,6 +387,10 @@ const InlineKeyboard = React.memo(({
                 onClick={(e) => {
                   e.stopPropagation();
                   onDeleteButton?.(row.id, button.id);
+                  const nextFocus = getNextFocusAfterDelete(row.id, button.id);
+                  if (nextFocus) {
+                    focusButton(nextFocus.rowId, nextFocus.buttonId);
+                  }
                 }}
                 className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform border border-red-600"
                 aria-label="Delete button"
@@ -302,7 +417,11 @@ const InlineKeyboard = React.memo(({
       )}
       <div className="space-y-4 mt-4">
         {!readOnly && validationErrors.length > 0 && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 text-destructive text-xs px-3 py-2 space-y-1">
+          <div
+            className="rounded-md border border-destructive/30 bg-destructive/10 text-destructive text-xs px-3 py-2 space-y-1"
+            role="status"
+            aria-live="polite"
+          >
             {validationErrors.map((msg, idx) => (
               <div key={`${msg}-${idx}`}>{msg}</div>
             ))}
