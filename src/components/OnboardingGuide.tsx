@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -27,6 +28,23 @@ export const OnboardingGuide = ({
   onTogglePreview,
   onShare,
 }: OnboardingGuideProps) => {
+  const skipButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      previousFocusRef.current = document.activeElement as HTMLElement | null;
+      requestAnimationFrame(() => skipButtonRef.current?.focus());
+    }
+  }, [visible]);
+
+  const handleDismiss = () => {
+    onDismiss();
+    // restore focus to the element that was focused before the overlay opened, or fall back to body
+    const target = previousFocusRef.current || document.body;
+    requestAnimationFrame(() => target?.focus?.());
+  };
+
   if (!visible) return null;
 
   const steps = [
@@ -60,7 +78,19 @@ export const OnboardingGuide = ({
 
   return (
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[min(960px,92vw)] pointer-events-none">
-      <Card className="pointer-events-auto bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 text-white border border-white/10 shadow-2xl">
+      <Card
+        role="dialog"
+        aria-modal="true"
+        aria-label="一次性引导"
+        tabIndex={-1}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.stopPropagation();
+            handleDismiss();
+          }
+        }}
+        className="pointer-events-auto bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 text-white border border-white/10 shadow-2xl"
+      >
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4 md:p-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
@@ -76,7 +106,20 @@ export const OnboardingGuide = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="text-slate-200 hover:text-white" onClick={onDismiss}>
+            <Button
+              ref={skipButtonRef}
+              variant="ghost"
+              size="sm"
+              className="text-slate-200 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
+              aria-label="跳过引导"
+              onClick={handleDismiss}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleDismiss();
+                }
+              }}
+            >
               跳过引导
             </Button>
           </div>

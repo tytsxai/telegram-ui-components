@@ -176,7 +176,7 @@ const ButtonEditDialog = ({ open, onOpenChange, button, onSave, screens = [], on
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px]" aria-label="编辑按钮对话框" aria-modal="true" role="dialog">
         <DialogHeader>
           <DialogTitle>编辑按钮</DialogTitle>
         </DialogHeader>

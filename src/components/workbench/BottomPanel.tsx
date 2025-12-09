@@ -78,7 +78,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
             {/* Logs Section */}
             <div className="space-y-2">
                 {pendingOpsNotice && (
-                    <Alert className="border-amber-500/50 bg-amber-500/10 py-2">
+                    <Alert className="border-amber-500/50 bg-amber-500/10 py-2" role="status" aria-live="polite" aria-atomic="true">
                         <AlertCircle className="h-4 w-4 text-amber-600" />
                         <AlertDescription className="text-xs text-foreground space-y-2">
                             <div className="flex items-center justify-between gap-2">
@@ -174,7 +174,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                 )}
 
                 {circularReferences.length > 0 && (
-                    <Alert className={`py-2 ${allowCircular ? 'border-amber-500/50 bg-amber-500/10' : 'border-destructive/50 bg-destructive/10'}`}>
+                    <Alert className={`py-2 ${allowCircular ? 'border-amber-500/50 bg-amber-500/10' : 'border-destructive/50 bg-destructive/10'}`} role="status" aria-live="polite" aria-atomic="true">
                         <AlertCircle className={`h-4 w-4 ${allowCircular ? 'text-amber-600' : 'text-destructive'}`} />
                         <AlertDescription className="text-xs text-foreground">
                             <strong>
