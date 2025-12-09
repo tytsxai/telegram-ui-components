@@ -1,6 +1,6 @@
 import { renderHook, act } from "@testing-library/react";
 import type { User } from "@supabase/supabase-js";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import { publishSyncEvent } from "@/lib/syncTelemetry";
 import { useSupabaseSync } from "../chat/useSupabaseSync";
 import type { Screen } from "@/types/telegram";
@@ -46,6 +46,11 @@ vi.mock("@/lib/dataAccess", () => {
 
 const mockUser = { id: "user-1" } as User;
 
+// Silence noisy sync logs during tests while still allowing targeted assertions
+const consoleInfoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
 describe("useSupabaseSync", () => {
   beforeEach(() => {
     Object.values(mockDataAccess).forEach((fn) => fn.mockReset());
@@ -75,6 +80,12 @@ describe("useSupabaseSync", () => {
     });
 
     Object.values(toast).forEach((fn) => fn.mockReset());
+  });
+
+  afterAll(() => {
+    consoleInfoSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
   });
 
   const makePendingSave = (overrides: Partial<PendingItem> = {}): PendingItem => ({

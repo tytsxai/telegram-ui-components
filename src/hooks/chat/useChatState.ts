@@ -1,18 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import { KeyboardRow } from '@/types/telegram';
 import { validateKeyboard, validateMessageContent } from '@/lib/validation';
+import { createDefaultKeyboard, cloneKeyboard } from '@/lib/keyboard/factory';
 import type { TemplatePayload, ParseMode, MessageType } from "@/types/templates";
 export type { TemplatePayload, ParseMode, MessageType } from "@/types/templates";
-
-const DEFAULT_KEYBOARD_TEMPLATE: KeyboardRow[] = [
-    {
-        id: "row-1",
-        buttons: [
-            { id: "btn-1", text: "Button 1", callback_data: "btn_1_action" },
-            { id: "btn-2", text: "Button 2", callback_data: "btn_2_action" },
-        ],
-    },
-];
 
 interface TelegramExportButton {
     text: string;
@@ -50,7 +41,7 @@ type LoadTemplateResult = { ok: true } | { ok: false; error: string };
 
 export const useChatState = () => {
     const [messageContent, setMessageContent] = useState("Welcome to the Telegram UI Builder!\n\nEdit this message directly.\n\nFormatting:\n**bold text** for bold\n`code blocks` for code");
-    const [keyboard, setKeyboard] = useState<KeyboardRow[]>(DEFAULT_KEYBOARD_TEMPLATE);
+    const [keyboard, setKeyboard] = useState<KeyboardRow[]>(createDefaultKeyboard());
     const [history, setHistory] = useState<{ messageContent: string; keyboard: KeyboardRow[] }[]>([]);
     const [historyIndex, setHistoryIndex] = useState(-1);
     const [editableJSON, setEditableJSON] = useState("");
@@ -61,7 +52,7 @@ export const useChatState = () => {
     const pushToHistory = useCallback((content: string, kbd: KeyboardRow[]) => {
         setHistory((prev) => {
             const newHistory = prev.slice(0, historyIndex + 1);
-            newHistory.push({ messageContent: content, keyboard: JSON.parse(JSON.stringify(kbd)) });
+            newHistory.push({ messageContent: content, keyboard: cloneKeyboard(kbd) });
             if (newHistory.length > 50) newHistory.shift();
             return newHistory;
         });
@@ -72,7 +63,7 @@ export const useChatState = () => {
         if (historyIndex > 0) {
             const prevState = history[historyIndex - 1];
             setMessageContent(prevState.messageContent);
-            setKeyboard(JSON.parse(JSON.stringify(prevState.keyboard)));
+            setKeyboard(cloneKeyboard(prevState.keyboard));
             setHistoryIndex(historyIndex - 1);
         }
     }, [history, historyIndex]);
@@ -81,7 +72,7 @@ export const useChatState = () => {
         if (historyIndex < history.length - 1) {
             const nextState = history[historyIndex + 1];
             setMessageContent(nextState.messageContent);
-            setKeyboard(JSON.parse(JSON.stringify(nextState.keyboard)));
+            setKeyboard(cloneKeyboard(nextState.keyboard));
             setHistoryIndex(historyIndex + 1);
         }
     }, [history, historyIndex]);
@@ -209,7 +200,7 @@ export const useChatState = () => {
         const nextParseMode: ParseMode = template.parse_mode === "MarkdownV2" ? "MarkdownV2" : "HTML";
         const safeMedia = template.media_url || "";
         const finalType: MessageType = nextType !== "text" && !safeMedia ? "text" : nextType;
-        const safeKeyboard = JSON.parse(JSON.stringify(template.keyboard)) as KeyboardRow[];
+        const safeKeyboard = cloneKeyboard(template.keyboard as KeyboardRow[]);
 
         setMessageContent(template.message_content);
         setKeyboard(safeKeyboard);
