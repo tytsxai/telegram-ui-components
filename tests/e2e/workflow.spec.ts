@@ -1,13 +1,15 @@
 import { test, expect } from "@playwright/test";
-import { setupSupabaseMock } from "../fixtures/supabaseMock";
+import { seedAuthSession, setupSupabaseMock } from "../fixtures/supabaseMock";
 
 test.beforeEach(async ({ page }) => {
+  await seedAuthSession(page);
   await setupSupabaseMock(page);
 });
 
 test("happy path: visit home, export JSON, open flow diagram", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /Telegram Bot/i })).toBeVisible();
+  await page.getByRole("button", { name: /跳过引导/ }).click({ timeout: 6000 }).catch(() => {});
+  await expect(page.locator('[data-testid="inline-keyboard"]')).toBeVisible({ timeout: 10000 });
 
   // Open flow diagram
   await page.getByRole("button", { name: /关系图|Flow Diagram|diagram/i }).click({ trial: true }).catch(() => {});

@@ -4,15 +4,16 @@ import { seedAuthSession, setupSupabaseMock, type SupabaseMockState } from "../f
 let supabaseState: SupabaseMockState;
 
 test.beforeEach(async ({ page }) => {
+  await seedAuthSession(page);
   const { state } = await setupSupabaseMock(page);
   supabaseState = state;
-  await seedAuthSession(page);
 });
 
 test.describe("Drag-sort, media, parse mode, and codegen flow", () => {
   test("drag buttons, change parse mode/media, save and see codegen", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByText(/Telegram Bot/i)).toBeVisible();
+    await page.getByRole("button", { name: /跳过引导/ }).click({ timeout: 6000 }).catch(() => {});
+    await expect(page.locator('[data-testid="inline-keyboard"]')).toBeVisible({ timeout: 10000 });
 
     // 输入名称并写入内容
     await page.getByPlaceholder("输入名称...").fill("Drag Test");

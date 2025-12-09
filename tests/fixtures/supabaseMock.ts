@@ -59,12 +59,47 @@ export const seedAuthSession = async (page: Page) => {
 };
 
 export const setupSupabaseMock = async (page: Page, initialState?: Partial<SupabaseMockState>) => {
+  const defaultKeyboard = [
+    {
+      id: "row-1",
+      buttons: [
+        { id: "btn-1", text: "Button 1", callback_data: "btn_1" },
+        { id: "btn-2", text: "Button 2", callback_data: "btn_2" },
+      ],
+    },
+  ];
+
+  const defaultScreen = {
+    id: "screen-1",
+    name: "Home",
+    message_content: "Welcome to Telegram Bot",
+    keyboard: defaultKeyboard,
+    parse_mode: "MarkdownV2",
+    message_type: "text",
+    media_url: null,
+    share_token: null,
+    is_public: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    user_id: mockUser.id,
+  } satisfies Screen;
+
   const state: SupabaseMockState = {
-    screens: initialState?.screens ?? [],
+    screens: initialState?.screens ?? [defaultScreen],
     userPins: initialState?.userPins ?? [],
     layouts: initialState?.layouts ?? [],
   };
   const ctx = page.context();
+
+  // Pre-seed default screen into localStorage before app scripts run to guarantee
+  // the builder renders immediately even if network mocks are slow to respond.
+  await page.addInitScript((seed) => {
+    try {
+      window.localStorage.setItem("telegram_ui_screens_v1", JSON.stringify(seed.screens));
+    } catch (e) {
+      console.warn("failed to seed screens", e);
+    }
+  }, { screens: state.screens });
 
   ctx.route("**/auth/v1/**", async (route) => {
     const method = route.request().method();

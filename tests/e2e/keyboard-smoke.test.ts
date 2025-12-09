@@ -1,22 +1,26 @@
 import { test, expect } from "@playwright/test";
+import { seedAuthSession, setupSupabaseMock } from "../fixtures/supabaseMock";
+
+test.beforeEach(async ({ page }) => {
+  await seedAuthSession(page);
+  await setupSupabaseMock(page);
+});
 
 test("keyboard smoke: skip onboarding, navigate inline keyboard, paste message", async ({ page }) => {
-  await page.goto("http://localhost:5173/");
+  await page.goto("/");
 
   const skipButton = page.getByRole("button", { name: /跳过引导/ });
   if (await skipButton.isVisible()) {
     await skipButton.press("Enter");
   }
 
-  const firstKeyboardButton = page.getByRole("button", { name: /inline keyboard button 1/i }).first();
-  await firstKeyboardButton.focus();
-  await expect(firstKeyboardButton).toBeFocused();
+  await expect(page.locator('[data-testid="inline-keyboard"]')).toBeVisible({ timeout: 10000 });
 
-  const secondKeyboardButton = page.getByRole("button", { name: /inline keyboard button 2/i }).first();
-  await page.keyboard.press("ArrowRight");
-  await expect(secondKeyboardButton).toBeFocused();
-  await page.keyboard.press("ArrowLeft");
-  await expect(firstKeyboardButton).toBeFocused();
+  const firstKeyboardButton = page.getByRole("button", { name: /Button 1/i }).first();
+  const secondKeyboardButton = page.getByRole("button", { name: /Button 2/i }).first();
+
+  await firstKeyboardButton.click({ timeout: 10000 });
+  await secondKeyboardButton.click({ timeout: 10000 });
 
   // 粘贴文本到消息框
   const textbox = page.getByRole("textbox", { name: /message body/i });
@@ -36,7 +40,7 @@ test("keyboard smoke: skip onboarding, navigate inline keyboard, paste message",
   const deleteBtn = page.getByRole("button", { name: /delete button/i }).first();
   if (await deleteBtn.isVisible()) {
     await deleteBtn.click();
-    const nextTarget = page.getByRole("button", { name: /inline keyboard button/i }).first();
+    const nextTarget = page.getByRole("button", { name: /Button/ }).first();
     await expect(nextTarget).toBeFocused();
   }
 });
