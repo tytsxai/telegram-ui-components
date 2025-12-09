@@ -4,15 +4,15 @@ import { seedAuthSession, setupSupabaseMock, type SupabaseMockState } from "../f
 let supabaseState: SupabaseMockState;
 
 test.beforeEach(async ({ page }) => {
+  await seedAuthSession(page);
   const { state } = await setupSupabaseMock(page);
   supabaseState = state;
-  await seedAuthSession(page);
 });
 
 test("create -> edit -> save template flow", async ({ page }) => {
   await page.goto("/");
-
-  await expect(page.getByText(/Telegram Bot/i)).toBeVisible();
+  await page.getByRole("button", { name: /跳过引导/ }).click({ timeout: 6000 }).catch(() => {});
+  await expect(page.locator('[data-testid="inline-keyboard"]')).toBeVisible({ timeout: 10000 });
 
   await page.getByPlaceholder("输入名称...").fill("E2E Flow Template");
 
@@ -29,11 +29,12 @@ test("create -> edit -> save template flow", async ({ page }) => {
   await page.getByRole("button", { name: "保存新模版" }).click();
 
   await expect(page.getByText(/Screen saved/i)).toBeVisible({ timeout: 5_000 });
-  await expect.poll(() => supabaseState.screens.length).toBe(1);
+  // default screen is pre-seeded, so after saving there should be 2
+  await expect.poll(() => supabaseState.screens.length).toBe(2);
 
   await editor.click();
   await editor.fill("Updated content for E2E");
   await page.getByRole("button", { name: /保存修改/ }).click();
 
-  await expect.poll(() => supabaseState.screens[0]?.message_content ?? "").toContain("Updated content for E2E");
+  await expect.poll(() => supabaseState.screens.find((s) => s.name === "E2E Flow Template")?.message_content ?? "").toContain("Updated content for E2E");
 });

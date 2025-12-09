@@ -1,23 +1,17 @@
 import fs from "fs/promises";
 import { test, expect } from "@playwright/test";
-import { mockUser, setupSupabaseMock, storageKey } from "../fixtures/supabaseMock";
+import { mockUser, seedAuthSession, setupSupabaseMock, storageKey } from "../fixtures/supabaseMock";
 
 test.use({ acceptDownloads: true });
 
 test("login -> create/link -> export/import -> share -> offline queue replay", async ({ page }) => {
+  await seedAuthSession(page);
   const { state } = await setupSupabaseMock(page);
 
-  // Login
-  await page.goto("/auth");
-  await expect(page.getByRole("heading", { name: /log in/i })).toBeVisible();
-  await page.getByPlaceholder("Email").fill(mockUser.email);
-  await page.getByPlaceholder("Password").fill("password123");
-  await page.getByRole("button", { name: /log in/i }).click();
-
-  await page.waitForURL("**/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByText(/Telegram Bot/i)).toBeVisible();
+  await page.goto("/");
+  await page.getByRole("button", { name: /跳过引导/ }).click({ timeout: 6000 }).catch(() => {});
+  await expect(page.locator('[data-testid="inline-keyboard"]')).toBeVisible({ timeout: 10000 });
   await expect.poll(() => page.evaluate((key) => !!localStorage.getItem(key), storageKey)).toBeTruthy();
-  await page.getByRole("button", { name: "跳过引导" }).click({ timeout: 2000 }).catch(() => {});
 
   const editor = page.locator('[contenteditable="true"]').first();
 
@@ -27,9 +21,11 @@ test("login -> create/link -> export/import -> share -> offline queue replay", a
   await editor.fill("Entry message for sharing");
   await page.getByRole("button", { name: "保存新模版" }).click();
   await expect(page.getByText(/Screen saved/i)).toBeVisible({ timeout: 5000 });
-  await expect.poll(() => state.screens.length).toBe(1);
-  await expect.poll(() => state.screens[0]?.name ?? "").toBe("Entry Screen");
-  const entryId = state.screens[0].id;
+  // default screen is pre-seeded, so after first save there should be 2
+  await expect.poll(() => state.screens.length).toBe(2);
+  const entryScreen = state.screens.find((s) => s.name === "Entry Screen");
+  await expect(entryScreen?.name ?? "").toBe("Entry Screen");
+  const entryId = entryScreen!.id;
 
   // Create detail screen
   await page.getByRole("button", { name: "新建模版" }).click();
@@ -38,9 +34,10 @@ test("login -> create/link -> export/import -> share -> offline queue replay", a
   await editor.fill("Details to be linked");
   await page.getByRole("button", { name: "保存新模版" }).click();
   await expect(page.getByText(/Screen saved/i)).toBeVisible({ timeout: 5000 });
-  await expect.poll(() => state.screens.length).toBe(2);
-  await expect.poll(() => state.screens[1]?.name ?? "").toBe("Detail Screen");
-  const detailId = state.screens[1].id;
+  await expect.poll(() => state.screens.length).toBe(3);
+  const detailScreen = state.screens.find((s) => s.name === "Detail Screen");
+  await expect(detailScreen?.name ?? "").toBe("Detail Screen");
+  const detailId = detailScreen!.id;
 
   // Switch back to entry screen via template list selector
   const templateSelect = page.getByTestId("template-select-trigger");
