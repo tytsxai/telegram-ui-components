@@ -26,8 +26,9 @@ export const useSupabaseSync = (user: User | null) => {
             status: SyncStatus & { requestId?: string; message?: string },
             meta?: { action?: string; targetId?: string },
         ) => {
-            /* c8 ignore next 9 */
-            if (import.meta.env.DEV) {
+            /* c8 ignore next 11 */
+            const shouldConsoleLog = import.meta.env.DEV && import.meta.env.MODE !== "test";
+            if (shouldConsoleLog) {
                 console.info("[Sync]", {
                     scope,
                     state: status.state,
