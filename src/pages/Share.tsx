@@ -61,6 +61,7 @@ const Share = () => {
   const navigate = useNavigate();
   const [screen, setScreen] = useState<ShareScreen | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const dataAccess = useMemo(() => new SupabaseDataAccess(), []);
   const previewRef = useRef<HTMLDivElement | null>(null);
@@ -90,13 +91,15 @@ const Share = () => {
         const data = await dataAccess.getPublicScreenByToken(token);
         if (!data) {
           setScreen(null);
+          setErrorMessage("未找到分享链接或链接已失效");
           return;
         }
 
         setScreen(buildShareScreen(data as ScreenRow));
       } catch (error) {
-        toast.error("模版未找到");
-        navigate("/");
+        console.error("加载分享模版失败", error);
+        setScreen(null);
+        setErrorMessage("加载分享链接失败，请稍后重试或联系分享者");
       } finally {
         setIsLoading(false);
       }
@@ -151,7 +154,22 @@ const Share = () => {
     );
   }
 
-  if (!screen) return null;
+  if (!screen) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <div className="max-w-md w-full space-y-4 text-center bg-muted/40 border border-border rounded-xl p-6 shadow-sm">
+          <div className="text-2xl font-semibold">无法打开分享链接</div>
+          <p className="text-muted-foreground">
+            {errorMessage ?? "分享链接无效或已过期，请向分享者确认链接是否仍然有效。"}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button onClick={() => navigate("/")}>返回首页</Button>
+            <Button variant="outline" onClick={() => navigate("/auth")}>前往登录</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const authorLabel = screen.user_id ? `${screen.user_id.slice(0, 8)}…` : "匿名用户";
   const lastUpdatedLabel = formatDateTime(screen.updated_at || screen.created_at);
