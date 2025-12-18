@@ -55,6 +55,9 @@ describe("useSupabaseSync", () => {
   beforeEach(() => {
     Object.values(mockDataAccess).forEach((fn) => fn.mockReset());
     vi.mocked(publishSyncEvent).mockReset();
+    consoleInfoSpy.mockClear();
+    consoleErrorSpy.mockClear();
+    consoleWarnSpy.mockClear();
 
     const screensChain = {
       select: vi.fn().mockReturnValue({
@@ -129,7 +132,6 @@ describe("useSupabaseSync", () => {
   });
 
   it("logs pin fetch errors but still resolves load", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     supabaseFrom.mockImplementation((table) => {
       if (table === "screens") {
         return {
@@ -157,12 +159,10 @@ describe("useSupabaseSync", () => {
       await result.current.loadScreens();
     });
 
-    expect(consoleSpy).toHaveBeenCalledWith("Error loading pins:", expect.anything());
-    consoleSpy.mockRestore();
+    expect(consoleErrorSpy).toHaveBeenCalledWith("Error loading pins:", expect.anything());
   });
 
   it("sets share sync status to error when loading fails", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     supabaseFrom.mockImplementationOnce(() => ({
       select: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
@@ -179,7 +179,6 @@ describe("useSupabaseSync", () => {
 
     expect(result.current.shareSyncStatus.state).toBe("error");
     expect(toast.error).toHaveBeenCalledWith("Failed to load screens");
-    consoleSpy.mockRestore();
   });
 
   it("saves a screen and appends it to state", async () => {
@@ -230,7 +229,6 @@ describe("useSupabaseSync", () => {
   });
 
   it("surfaces errors when updating screens fails", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockDataAccess.updateScreen.mockRejectedValue(new Error("update boom"));
 
     const { result } = renderHook(() => useSupabaseSync(mockUser));
@@ -245,11 +243,9 @@ describe("useSupabaseSync", () => {
     ).rejects.toThrow("update boom");
 
     expect(toast.error).toHaveBeenCalledWith("Failed to update screen");
-    consoleSpy.mockRestore();
   });
 
   it("sets share status to error when saving fails", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockDataAccess.saveScreen.mockRejectedValue(new Error("fail to save"));
 
     const { result } = renderHook(() => useSupabaseSync(mockUser));
@@ -269,7 +265,6 @@ describe("useSupabaseSync", () => {
     expect(result.current.shareSyncStatus.state).toBe("error");
     expect(result.current.shareLoading).toBe(false);
     expect(toast.error).toHaveBeenCalledWith("Failed to save screen");
-    consoleSpy.mockRestore();
   });
 
   it("deletes a screen and updates local state", async () => {
@@ -289,7 +284,6 @@ describe("useSupabaseSync", () => {
   });
 
   it("handles bulk delete failures gracefully", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockDataAccess.deleteScreens.mockRejectedValue(new Error("bulk failed"));
 
     const { result } = renderHook(() => useSupabaseSync(mockUser));
@@ -304,11 +298,9 @@ describe("useSupabaseSync", () => {
     expect(mockDataAccess.deleteScreens).toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith("Failed to delete all screens");
     expect(result.current.screens).toHaveLength(1);
-    consoleSpy.mockRestore();
   });
 
   it("logs error when deleting a single screen fails", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockDataAccess.deleteScreens.mockRejectedValue(new Error("delete failed"));
 
     const { result } = renderHook(() => useSupabaseSync(mockUser));
@@ -322,7 +314,6 @@ describe("useSupabaseSync", () => {
 
     expect(toast.error).toHaveBeenCalledWith("Failed to delete screen");
     expect(result.current.screens).toHaveLength(1);
-    consoleSpy.mockRestore();
   });
 
   it("deletes all screens and clears state", async () => {
@@ -341,7 +332,6 @@ describe("useSupabaseSync", () => {
   });
 
   it("reverts pinned ids when upsert fails", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockDataAccess.upsertPins.mockRejectedValue(new Error("boom"));
 
     const { result } = renderHook(() => useSupabaseSync(mockUser));
@@ -356,8 +346,6 @@ describe("useSupabaseSync", () => {
 
     expect(result.current.pinnedIds).toEqual([]);
     expect(toast.error).toHaveBeenCalledWith("Failed to update pins");
-
-    consoleSpy.mockRestore();
   });
 
   it("toggles pins and persists when upsert succeeds", async () => {
@@ -397,7 +385,6 @@ describe("useSupabaseSync", () => {
   });
 
   it("emits layout sync events with telemetry payload", () => {
-    const consoleSpy = vi.spyOn(console, "info").mockImplementation(() => {});
     const { result } = renderHook(() => useSupabaseSync(mockUser));
 
     act(() => {
@@ -415,8 +402,6 @@ describe("useSupabaseSync", () => {
         meta: expect.objectContaining({ userId: mockUser.id }),
       }),
     );
-
-    consoleSpy.mockRestore();
   });
 
   it("exposes queue replay callbacks that publish telemetry", () => {

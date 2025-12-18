@@ -12,19 +12,14 @@ import { useCodegen } from "@/hooks/chat/useCodegen";
 import { useAuthUser } from "@/hooks/chat/useAuthUser";
 import { validateKeyboard, validateMessageContent } from "@/lib/validation";
 import type { TemplateDefinition } from "@/types/templates";
-import {
-  clearPendingOps,
-  enqueueSaveOperation,
-  enqueueUpdateOperation,
-  processPendingOps,
-  readPendingOps,
-} from "@/lib/pendingQueue";
+import { useOfflineQueueSync } from "@/hooks/chat/useOfflineQueueSync";
 import type { Json, TablesUpdate } from "@/integrations/supabase/types";
 import type { SaveScreenInput } from "@/lib/dataAccess";
 import type { KeyboardButton, KeyboardRow, Screen } from "@/types/telegram";
 import { MessageBubbleHandle } from "@/components/MessageBubble";
 import { makeRequestId } from "@/types/sync";
 import { recordAuditEvent } from "@/lib/auditTrail";
+import { cloneKeyboard, createDefaultKeyboard } from "@/lib/keyboard/factory";
 
 type ImportInlineButton = Partial<KeyboardButton> & { text?: string };
 type ImportInlineKeyboard = ImportInlineButton[][];
@@ -43,22 +38,6 @@ type OnboardingProgress = { template: boolean; preview: boolean; share: boolean 
 const ONBOARDING_STATE_KEY = "telegram_ui_onboarding_state_v1";
 const ONBOARDING_DISMISS_KEY = "telegram_ui_onboarding_done_v1";
 
-const cloneKeyboard = (rows: KeyboardRow[]): KeyboardRow[] =>
-  rows.map((row) => ({
-    ...row,
-    buttons: row.buttons.map((btn) => ({ ...btn })),
-  }));
-
-const createDefaultKeyboard = (): KeyboardRow[] => [
-  {
-    id: "row-1",
-    buttons: [
-      { id: "btn-1", text: "Button 1", callback_data: "btn_1_action" },
-      { id: "btn-2", text: "Button 2", callback_data: "btn_2_action" },
-    ],
-  },
-];
-
 const isNetworkError = (error: unknown) => {
   if (!error) return false;
   if (typeof navigator !== "undefined" && !navigator.onLine) return true;
@@ -67,25 +46,10 @@ const isNetworkError = (error: unknown) => {
   return message.includes("Failed to fetch") || message.includes("NetworkError");
 };
 
-const safeRandomId = () => {
-  try {
-    // @ts-expect-error crypto may not exist in all environments
-    if (typeof crypto !== "undefined" && crypto.randomUUID) {
-      // @ts-expect-error randomUUID polyfill for browsers
-      return crypto.randomUUID();
-    }
-  } catch (e) {
-    void e;
-  }
-  return `local_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-};
-
 export const useBuilderStore = () => {
   const navigate = useNavigate();
   const messageBubbleRef = useRef<MessageBubbleHandle>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const queuedToastShownRef = useRef(false);
-
   const { user } = useAuthUser();
   const isOffline = useNetworkStatus();
 
@@ -105,8 +69,6 @@ export const useBuilderStore = () => {
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const [buttonEditDialogOpen, setButtonEditDialogOpen] = useState(false);
   const [editingButtonData, setEditingButtonData] = useState<{ rowId: string; buttonId: string; button: KeyboardButton } | null>(null);
-  const [pendingOpsNotice, setPendingOpsNotice] = useState(false);
-  const [retryingQueue, setRetryingQueue] = useState(false);
   const [jsonSyncError, setJsonSyncError] = useState<string | null>(null);
   const [isClearingScreens, setIsClearingScreens] = useState(false);
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState<{ messageContent: string; keyboard: KeyboardRow[] } | null>(null);
@@ -160,13 +122,14 @@ export const useBuilderStore = () => {
   } = useChatState();
 
   // Track whether current editor state differs from last saved snapshot
-  const unsavedChanges = useMemo(() => {
-    if (!lastSavedSnapshot) return true;
-    return (
-      lastSavedSnapshot.messageContent !== messageContent ||
-      JSON.stringify(lastSavedSnapshot.keyboard) !== JSON.stringify(keyboard)
-    );
-  }, [lastSavedSnapshot, messageContent, keyboard]);
+  const hasUnsavedChanges = useMemo(
+    () =>
+      !!lastSavedSnapshot && (
+        lastSavedSnapshot.messageContent !== serializeMessagePayload() ||
+        JSON.stringify(lastSavedSnapshot.keyboard) !== JSON.stringify(keyboard)
+      ),
+    [keyboard, lastSavedSnapshot, serializeMessagePayload],
+  );
 
   const completeOnboardingStep = useCallback((step: keyof OnboardingProgress) => {
     setOnboardingProgress((prev) => (prev[step] ? prev : { ...prev, [step]: true }));
@@ -232,18 +195,29 @@ export const useBuilderStore = () => {
     handleCopyCodegen
   } = useCodegen(convertToTelegramFormat, messageType);
 
-  const refreshPendingQueueSize = useCallback(() => {
-    const size = readPendingOps(user?.id).length;
-    setPendingQueueSize(size);
-    setPendingOpsNotice(size > 0);
-    if (size === 0) {
-      queuedToastShownRef.current = false;
-    }
-  }, [setPendingQueueSize, user?.id]);
-
-  useEffect(() => {
-    refreshPendingQueueSize();
-  }, [refreshPendingQueueSize]);
+  const {
+    pendingOpsNotice,
+    retryingQueue,
+    refreshPendingQueueSize,
+    queueSaveOperation,
+    queueUpdateOperation,
+    replayPendingQueue,
+    clearPendingQueue,
+  } = useOfflineQueueSync({
+    user,
+    keyboard,
+    parseMode,
+    messageType,
+    mediaUrl,
+    currentScreenId,
+    serializeMessagePayload,
+    dataAccess,
+    queueReplayCallbacks,
+    setScreens,
+    setCurrentScreenId,
+    setLastSavedSnapshot,
+    setPendingQueueSize,
+  });
 
   useEffect(() => {
     if (user) {
@@ -296,156 +270,7 @@ export const useBuilderStore = () => {
     [handleNavigateToScreen, isPreviewMode]
   );
 
-  const queueSaveOperation = useCallback(
-    (payload: SaveScreenInput) => {
-      const id = payload.id ?? safeRandomId();
-      const queuedPayload = { ...payload, id };
-      enqueueSaveOperation(queuedPayload, user?.id);
-      setScreens((prev) => [
-        ...prev,
-        {
-          id,
-          name: queuedPayload.name,
-          message_content: queuedPayload.message_content,
-          keyboard: cloneKeyboard(keyboard),
-          parse_mode: parseMode,
-          message_type: messageType,
-          media_url: mediaUrl,
-          share_token: queuedPayload.share_token ?? null,
-          is_public: queuedPayload.is_public ?? false,
-          created_at: new Date().toISOString(),
-          updated_at: null,
-          user_id: queuedPayload.user_id,
-        } as Screen,
-      ]);
-      setCurrentScreenId(id);
-      refreshPendingQueueSize();
-      setPendingOpsNotice(true);
-      if (!queuedToastShownRef.current) {
-        toast.info("网络不可用，已排队保存请求");
-        queuedToastShownRef.current = true;
-      }
-    },
-    [keyboard, mediaUrl, messageType, parseMode, refreshPendingQueueSize, setCurrentScreenId, setScreens, setPendingOpsNotice, user?.id],
-  );
-
-  const queueUpdateOperation = useCallback(
-    (updatePayload: TablesUpdate<"screens">) => {
-      if (!currentScreenId) return;
-      enqueueUpdateOperation({ id: currentScreenId, update: updatePayload }, user?.id);
-      setScreens((prev) =>
-        prev.map((s) =>
-          s.id === currentScreenId
-            ? ({
-              ...s,
-              message_content: updatePayload.message_content ?? s.message_content,
-              keyboard: updatePayload.keyboard ? cloneKeyboard(updatePayload.keyboard as KeyboardRow[]) : s.keyboard,
-              name: updatePayload.name ?? s.name,
-              updated_at: updatePayload.updated_at ?? s.updated_at,
-            } as Screen)
-            : s,
-        ),
-      );
-      refreshPendingQueueSize();
-      setPendingOpsNotice(true);
-      if (!queuedToastShownRef.current) {
-        toast.info("网络不可用，更新已排队");
-        queuedToastShownRef.current = true;
-      }
-    },
-    [currentScreenId, refreshPendingQueueSize, setScreens, setPendingOpsNotice, user?.id],
-  );
-
-  const replayPendingQueue = useCallback(async () => {
-    if (!user) {
-      refreshPendingQueueSize();
-      return;
-    }
-
-    const queued = readPendingOps(user.id);
-    if (queued.length === 0) {
-      refreshPendingQueueSize();
-      return;
-    }
-
-    setRetryingQueue(true);
-    try {
-      const remaining = await processPendingOps({
-        userId: user.id,
-        backoffMs: 400,
-        maxAttempts: 3,
-        ...(queueReplayCallbacks ?? {}),
-        execute: async (item) => {
-          if (item.kind === "save") {
-            const saved = await dataAccess.saveScreen(item.payload);
-            if (saved) {
-              setScreens((prev) => {
-                const idx = prev.findIndex((s) => s.id === (item.payload.id ?? (saved as Screen).id));
-                if (idx === -1) return prev;
-                const next = [...prev];
-                next[idx] = { ...(saved as Screen), keyboard: (saved as Screen).keyboard as KeyboardRow[] } as Screen;
-                return next;
-              });
-              setLastSavedSnapshot({
-                messageContent: item.payload.message_content,
-                keyboard: cloneKeyboard(item.payload.keyboard as KeyboardRow[]),
-              });
-              setCurrentScreenId((current) => current ?? (saved as Screen).id);
-            }
-          } else {
-            const updated = await dataAccess.updateScreen({ screenId: item.payload.id, update: item.payload.update });
-            setScreens((prev) =>
-              prev.map((s) =>
-                s.id === item.payload.id
-                  ? ({ ...(updated as Screen), keyboard: (updated as Screen).keyboard as KeyboardRow[] } as Screen)
-                  : s,
-              ),
-            );
-            if (item.payload.update.message_content || item.payload.update.keyboard) {
-              setLastSavedSnapshot({
-                messageContent: (item.payload.update.message_content as string) ?? serializeMessagePayload(),
-                keyboard: item.payload.update.keyboard
-                  ? cloneKeyboard(item.payload.update.keyboard as KeyboardRow[])
-                  : cloneKeyboard(keyboard),
-              });
-            }
-          }
-        },
-        onItemFailure: queueReplayCallbacks.onItemFailure,
-        onSuccess: queueReplayCallbacks.onSuccess,
-        onPermanentFailure: () => {
-          setPendingOpsNotice(true);
-          toast.error("离线队列重试失败，请检查网络后重试");
-        },
-      });
-      setPendingQueueSize(remaining.length);
-      setPendingOpsNotice(remaining.length > 0);
-      if (remaining.length === 0) {
-        queuedToastShownRef.current = false;
-        toast.success("离线队列已同步");
-      }
-    } finally {
-      setRetryingQueue(false);
-    }
-  }, [
-    dataAccess,
-    keyboard,
-    refreshPendingQueueSize,
-    serializeMessagePayload,
-    setCurrentScreenId,
-    setPendingOpsNotice,
-    setPendingQueueSize,
-    setScreens,
-    queueReplayCallbacks,
-    user,
-  ]);
-
-  const clearPendingQueue = useCallback(() => {
-    clearPendingOps(user?.id);
-    refreshPendingQueueSize();
-    setPendingOpsNotice(false);
-    toast.success("已清空离线队列");
-  }, [refreshPendingQueueSize, setPendingOpsNotice, user?.id]);
+  // Offline queue helpers moved to useOfflineQueueSync
 
   const createNewScreen = useCallback(() => {
     setMessageContent("Welcome to the Telegram UI Builder!\n\nEdit this message directly.");
@@ -606,13 +431,14 @@ export const useBuilderStore = () => {
   }, [lastSavedSnapshot, messageContent, keyboard]);
 
   useEffect(() => {
-    if (currentScreenId && user && !isPreviewMode) {
-      const timer = setTimeout(() => {
-        void handleUpdateScreen();
-      }, 2000);
-      return () => clearTimeout(timer);
+    if (!currentScreenId || !user || isPreviewMode || isOffline || !hasUnsavedChanges) {
+      return;
     }
-  }, [messageContent, keyboard, currentScreenId, user, isPreviewMode, handleUpdateScreen]);
+    const timer = setTimeout(() => {
+      void handleUpdateScreen();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [messageContent, keyboard, currentScreenId, user, isPreviewMode, isOffline, hasUnsavedChanges, handleUpdateScreen]);
 
   useEffect(() => {
     if (!isOffline) {
@@ -719,9 +545,60 @@ export const useBuilderStore = () => {
 
   const handleImportJSON = useCallback(async () => {
     try {
+      const MAX_IMPORT_BYTES = 512 * 1024; // 防止极大文件拖垮页面
       setIsImporting(true);
-      const data = JSON.parse(importJSON);
-      if (data.text) setMessageContent(data.text);
+      const importSize = new TextEncoder().encode(importJSON).length;
+      if (importSize > MAX_IMPORT_BYTES) {
+        throw new Error("导入文件过大（>512KB），请精简后重试");
+      }
+      const data = JSON.parse(importJSON) as ImportPayload;
+      const nextMessage =
+        typeof data.text === "string"
+          ? data.text
+          : typeof data.message_content === "string"
+            ? data.message_content
+            : null;
+      if (nextMessage) {
+        validateMessageContent(nextMessage);
+        setMessageContent(nextMessage);
+      }
+      if (typeof data.parse_mode === "string") {
+        setParseMode(data.parse_mode === "MarkdownV2" ? "MarkdownV2" : "HTML");
+      }
+      const inlineKeyboard = Array.isArray(data.reply_markup?.inline_keyboard)
+        ? (data.reply_markup?.inline_keyboard as ImportInlineKeyboard)
+        : undefined;
+      const internalKeyboard = data.keyboard;
+      const nextKeyboard = inlineKeyboard ?? internalKeyboard;
+
+      if (nextKeyboard) {
+        const mapped = inlineKeyboard
+          ? inlineKeyboard.map((row, rowIdx) => ({
+            id: `import-row-${rowIdx}-${Date.now()}`,
+            buttons: row.map((btn, btnIdx) => ({
+              id: btn.id ?? `import-btn-${rowIdx}-${btnIdx}-${Date.now()}`,
+              text: btn.text ?? "",
+              url: btn.url,
+              callback_data: btn.callback_data,
+              linked_screen_id: btn.linked_screen_id,
+            })),
+          }))
+          : (nextKeyboard as KeyboardRow[]);
+
+        validateKeyboard(mapped);
+        setKeyboard(cloneKeyboard(mapped));
+      }
+
+      if (typeof data.photo === "string") {
+        setMessageType("photo");
+        setMediaUrl(data.photo);
+      } else if (typeof data.video === "string") {
+        setMessageType("video");
+        setMediaUrl(data.video);
+      } else {
+        setMessageType("text");
+        setMediaUrl("");
+      }
       recordAuditEvent({
         action: "import_json",
         status: "success",
@@ -732,18 +609,19 @@ export const useBuilderStore = () => {
       toast.success("Imported successfully");
       setImportDialogOpen(false);
     } catch (e) {
+      const message = e instanceof Error ? e.message : "Invalid JSON";
       recordAuditEvent({
         action: "import_json",
         status: "error",
         userId: user?.id,
         targetId: currentScreenId ?? null,
-        message: "Import failed",
+        message: `Import failed: ${message}`,
       });
-      toast.error("Invalid JSON");
+      toast.error(message);
     } finally {
       setIsImporting(false);
     }
-  }, [currentScreenId, importJSON, setImportDialogOpen, setIsImporting, setMessageContent, user?.id]);
+  }, [currentScreenId, importJSON, setImportDialogOpen, setIsImporting, setKeyboard, setMediaUrl, setMessageContent, setMessageType, setParseMode, user?.id]);
 
   const handleImportFileSelect = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -881,16 +759,23 @@ export const useBuilderStore = () => {
   }, [currentScreenId, pushToHistory, messageContent, setKeyboard, setScreens]);
 
   const generateShareToken = useCallback(() => {
-    try {
-      // @ts-expect-error browser crypto
-      if (typeof crypto !== "undefined" && crypto.randomUUID) {
-        // @ts-expect-error randomUUID polyfill
-        return crypto.randomUUID();
+    if (typeof crypto !== "undefined") {
+      try {
+        // @ts-expect-error browser crypto
+        if (crypto.randomUUID) {
+          // @ts-expect-error randomUUID polyfill
+          return crypto.randomUUID();
+        }
+        if (crypto.getRandomValues) {
+          const buf = new Uint8Array(16);
+          crypto.getRandomValues(buf);
+          return Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
+        }
+      } catch (e) {
+        console.error("生成分享 token 失败", e);
       }
-    } catch (e) {
-      void e;
     }
-    return Math.random().toString(36).substring(2, 15);
+    throw new Error("当前环境不支持安全随机数，无法生成分享链接");
   }, []);
 
   const hasBrokenLinks = useCallback(
@@ -1073,15 +958,6 @@ export const useBuilderStore = () => {
     }
     messageBubbleRef.current?.focus();
   }, []);
-
-  const hasUnsavedChanges = useMemo(
-    () =>
-      !!lastSavedSnapshot && (
-        lastSavedSnapshot.messageContent !== serializeMessagePayload() ||
-        JSON.stringify(lastSavedSnapshot.keyboard) !== JSON.stringify(keyboard)
-      ),
-    [keyboard, lastSavedSnapshot, serializeMessagePayload]
-  );
 
   const builderStatus = {
     isOnline: !isOffline,

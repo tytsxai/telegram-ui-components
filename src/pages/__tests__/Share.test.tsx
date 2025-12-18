@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { describe, it, vi, expect } from "vitest";
 import Share, { buildShareScreen } from "../Share";
 
@@ -53,14 +53,21 @@ describe("Share page helpers", () => {
 });
 
 describe("Share page error states", () => {
-  const renderWithToken = (token: string) =>
-    render(
-      <MemoryRouter initialEntries={[`/share/${token}`]}>
-        <Routes>
-          <Route path="/share/:token" element={<Share />} />
-        </Routes>
-      </MemoryRouter>,
+  const renderWithToken = (token: string) => {
+    const router = createMemoryRouter(
+      [{ path: "/share/:token", element: <Share /> }],
+      {
+        initialEntries: [`/share/${token}`],
+      },
     );
+
+    return render(
+      <RouterProvider
+        router={router}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      />,
+    );
+  };
 
   it("shows friendly message when token is missing/invalid", async () => {
     renderWithToken("missing");

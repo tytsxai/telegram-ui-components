@@ -43,7 +43,6 @@ export const classifyRetryableError = (error: unknown): RetryReason | null => {
   if (code === "429") return "429";
   if (typeof code === "string" && code.startsWith("5")) return "5xx";
   if (isNetworkError(error)) return "network";
-  if (!code) return "network";
   return null;
 };
 
