@@ -8,6 +8,7 @@ on:
 jobs:
   gen-types:
     runs-on: ubuntu-latest
+    if: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' && secrets.SUPABASE_PROJECT_REF != '' }}
     permissions:
       contents: write
     env:

@@ -48,6 +48,7 @@ Prereqs: Node.js ≥18, npm.
 SUPABASE_PROJECT_REF=<ref> npm run supabase:types
 SUPABASE_PROJECT_REF=<ref> npm run check:supabase-types
 ```
+未设置 `SUPABASE_PROJECT_REF` 时，`supabase:types` 会直接退出并保持 `src/integrations/supabase/types.ts` 不变（避免误清空文件）。
 
 ## 常用脚本
 | 命令 | 用途 |

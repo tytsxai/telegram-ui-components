@@ -9,9 +9,13 @@ import type { Json } from "@/integrations/supabase/types";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { SupabaseDataAccess } from "@/lib/dataAccess";
+import { withRetry } from "@/lib/supabaseRetry";
+import { makeRequestId } from "@/types/sync";
 
 type ScreenRow = Omit<Screen, "keyboard"> & { keyboard: unknown };
 type ShareScreen = Screen & { rawMessageContent: string };
+
+const SHOULD_CONSOLE_LOG = import.meta.env.MODE !== "test";
 
 const cloneKeyboard = (rows: KeyboardRow[]): KeyboardRow[] =>
   rows.map((row) => ({
@@ -65,6 +69,7 @@ const Share = () => {
   const [user, setUser] = useState<User | null>(null);
   const dataAccess = useMemo(() => new SupabaseDataAccess(), []);
   const previewRef = useRef<HTMLDivElement | null>(null);
+  const fetchAbortRef = useRef<AbortController | null>(null);
 
   const formatDateTime = (input?: string | null) => {
     if (!input) return "时间未知";
@@ -87,8 +92,28 @@ const Share = () => {
 
   useEffect(() => {
     const fetchScreen = async () => {
+      fetchAbortRef.current?.abort();
+      const controller = new AbortController();
+      fetchAbortRef.current = controller;
+      setIsLoading(true);
+      setErrorMessage(null);
+      const requestId = makeRequestId();
       try {
-        const data = await dataAccess.getPublicScreenByToken(token);
+        const data = await withRetry(
+          () => dataAccess.getPublicScreenByToken(token, { signal: controller.signal }),
+          {
+            attempts: 3,
+            backoffMs: 350,
+            jitterRatio: 0.3,
+            requestId,
+            onRetry: (evt) => {
+              if (SHOULD_CONSOLE_LOG) {
+                console.info("[Share] retry", { requestId, attempt: evt.attempt, reason: evt.reason });
+              }
+            },
+          },
+        );
+        if (controller.signal.aborted) return;
         if (!data) {
           setScreen(null);
           setErrorMessage("未找到分享链接或链接已失效");
@@ -97,18 +122,26 @@ const Share = () => {
 
         setScreen(buildShareScreen(data as ScreenRow));
       } catch (error) {
-        console.error("加载分享模版失败", error);
+        if (controller.signal.aborted) return;
+        if (SHOULD_CONSOLE_LOG) {
+          console.error("加载分享模版失败", error);
+        }
         setScreen(null);
-        setErrorMessage("加载分享链接失败，请稍后重试或联系分享者");
+        // Surface a stable, user-friendly retry message.
+        const message = "加载分享链接失败，请稍后重试或联系分享者";
+        setErrorMessage(message);
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     };
 
     if (token) {
       fetchScreen();
     }
-  }, [token, navigate, dataAccess]);
+    return () => fetchAbortRef.current?.abort();
+  }, [token, dataAccess]);
 
   const scrollToEntry = () => {
     previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
