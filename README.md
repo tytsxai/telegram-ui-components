@@ -48,6 +48,7 @@ Prereqs: Node.js ≥18, npm.
 SUPABASE_PROJECT_REF=<ref> npm run supabase:types
 SUPABASE_PROJECT_REF=<ref> npm run check:supabase-types
 ```
+未设置 `SUPABASE_PROJECT_REF` 时，`supabase:types` 会直接退出并保持 `src/integrations/supabase/types.ts` 不变（避免误清空文件）。
 
 ## 常用脚本
 | 命令 | 用途 |
@@ -78,8 +79,11 @@ SUPABASE_PROJECT_REF=<ref> npm run check:supabase-types
 
 ## 参考文档
 - `docs/improvement-plan.md`（整体规划）
+- `docs/architecture-map.md`（模块与边界地图）
 - `docs/backend-readiness.md`（Supabase/RLS 检查清单）
 - `docs/cloud-persistence.md`（云持久化步骤）
+- `docs/offline-queue.md`（离线队列契约）
+- `docs/flow-export-format.md`（导入/导出 JSON 格式）
 - `docs/ops-runbook.md`（同步/重试运维）
 - `docs/ui-test-plan.md`（UI 测试清单）
 - `docs/telemetry.md`（同步遥测接入）

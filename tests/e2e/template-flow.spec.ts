@@ -27,10 +27,8 @@ test("create -> edit -> save template flow", async ({ page }) => {
   await textInput.press("Enter");
 
   await page.getByRole("button", { name: "保存新模版" }).click();
-
-  await expect(page.getByText(/Screen saved/i)).toBeVisible({ timeout: 5_000 });
   // default screen is pre-seeded, so after saving there should be 2
-  await expect.poll(() => supabaseState.screens.length).toBe(2);
+  await expect.poll(() => supabaseState.screens.length, { timeout: 10_000 }).toBe(2);
 
   await editor.click();
   await editor.fill("Updated content for E2E");

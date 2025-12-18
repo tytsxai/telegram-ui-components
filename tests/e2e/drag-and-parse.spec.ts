@@ -35,7 +35,8 @@ test.describe("Drag-sort, media, parse mode, and codegen flow", () => {
 
     // 保存新模板
     await page.getByRole("button", { name: "保存新模版" }).click();
-    await expect(page.getByText(/Screen saved/i)).toBeVisible({ timeout: 5000 });
+    // Avoid asserting on transient toast text; rely on the mocked Supabase state instead.
+    await expect.poll(() => supabaseState.screens.length, { timeout: 10_000 }).toBeGreaterThanOrEqual(2);
 
     // 打开代码生成区域并验证有内容
     await page.getByText("代码生成").scrollIntoViewIfNeeded();
