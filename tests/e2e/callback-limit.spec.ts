@@ -52,16 +52,7 @@ test("callback data longer than 64B is blocked", async ({ page }) => {
   await callbackInput.fill("x".repeat(200));
   await page.getByRole("button", { name: "保存" }).click();
 
-  const warning = page.getByText(/超过 64B/);
-  const sawWarning = await warning.isVisible({ timeout: 2000 }).catch(() => false);
-  if (!sawWarning) {
-    // Retry once: ensure callback tab active and save again
-    const callbackTab = page.getByRole("tab", { name: /callback/i });
-    if (await callbackTab.isVisible().catch(() => false)) {
-      await callbackTab.click();
-    }
-    await page.getByRole("button", { name: "保存" }).click();
-  }
-
-  await expect(warning).toBeVisible({ timeout: 3000 });
+  // The dialog hard-blocks saving oversized callback_data and surfaces an error.
+  await expect(dialog.getByText(/callback_data 最多 64 字节/)).toBeVisible({ timeout: 5000 });
+  await expect(dialog).toBeVisible();
 });
