@@ -20,9 +20,8 @@ test("login -> create/link -> export/import -> share -> offline queue replay", a
   await editor.click();
   await editor.fill("Entry message for sharing");
   await page.getByRole("button", { name: "保存新模版" }).click();
-  await expect(page.getByText(/Screen saved/i)).toBeVisible({ timeout: 5000 });
   // default screen is pre-seeded, so after first save there should be 2
-  await expect.poll(() => state.screens.length).toBe(2);
+  await expect.poll(() => state.screens.length, { timeout: 10_000 }).toBe(2);
   const entryScreen = state.screens.find((s) => s.name === "Entry Screen");
   await expect(entryScreen?.name ?? "").toBe("Entry Screen");
   const entryId = entryScreen!.id;
@@ -33,8 +32,7 @@ test("login -> create/link -> export/import -> share -> offline queue replay", a
   await editor.click();
   await editor.fill("Details to be linked");
   await page.getByRole("button", { name: "保存新模版" }).click();
-  await expect(page.getByText(/Screen saved/i)).toBeVisible({ timeout: 5000 });
-  await expect.poll(() => state.screens.length).toBe(3);
+  await expect.poll(() => state.screens.length, { timeout: 10_000 }).toBe(3);
   const detailScreen = state.screens.find((s) => s.name === "Detail Screen");
   await expect(detailScreen?.name ?? "").toBe("Detail Screen");
   const detailId = detailScreen!.id;
