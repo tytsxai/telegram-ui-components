@@ -44,6 +44,9 @@
 ## Runtime Config Guard
 - Production builds will show a configuration error screen if Supabase env values are missing or placeholders.
 - Ensure `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are set at build time.
+- Supabase URL must be https in production (non-local).
+- Service role keys are rejected on the client; never expose `SUPABASE_SERVICE_ROLE_KEY` via `VITE_*`.
+- Run `npm run check:env` (or `npm run build:prod`) in release pipelines to fail fast on bad env.
 
 ## Key Rotation (Supabase)
 - Rotate anon keys on suspected leakage and update `VITE_SUPABASE_PUBLISHABLE_KEY` in your host.

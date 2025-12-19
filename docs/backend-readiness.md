@@ -19,6 +19,7 @@ Target: keep app and Supabase in sync, with strict RLS and typed client coverage
 ## Environment
 - [ ] Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` for each environment (dev/stage/prod); avoid sharing anon keys across envs.
 - [ ] Add `SUPABASE_SERVICE_ROLE_KEY` only to server-side contexts (never shipped to client).
+- [ ] Run `npm run check:env` (or `npm run build:prod`) in release pipelines to catch missing/placeholder/insecure keys.
 
 ## Data & RLS Validation
 - [ ] Smoke test with anon key: create/update/delete screens as the signed-in user; ensure other users cannot access non-public screens.
