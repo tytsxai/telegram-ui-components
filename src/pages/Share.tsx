@@ -12,7 +12,7 @@ import { SupabaseDataAccess } from "@/lib/dataAccess";
 import { withRetry } from "@/lib/supabaseRetry";
 import { makeRequestId } from "@/types/sync";
 
-type ScreenRow = Omit<Screen, "keyboard"> & { keyboard: unknown };
+type PublicScreenRow = Omit<Screen, "keyboard" | "user_id"> & { keyboard: unknown };
 type ShareScreen = Screen & { rawMessageContent: string };
 
 const SHOULD_CONSOLE_LOG = import.meta.env.MODE !== "test";
@@ -48,7 +48,7 @@ const parseMessage = (raw: string) => {
   return { text: raw, mediaUrl: "", type: "text" as const };
 };
 
-export const buildShareScreen = (row: ScreenRow): ShareScreen => {
+export const buildShareScreen = (row: PublicScreenRow): ShareScreen => {
   const parsed = parseMessage(row.message_content);
   return {
     ...row,
@@ -125,7 +125,7 @@ const Share = () => {
           return;
         }
 
-        setScreen(buildShareScreen(data as ScreenRow));
+        setScreen(buildShareScreen(data as PublicScreenRow));
       } catch (error) {
         if (controller.signal.aborted) return;
         if (SHOULD_CONSOLE_LOG) {
@@ -172,7 +172,6 @@ const Share = () => {
           share_token: screen.share_token,
           created_at: null,
           updated_at: new Date().toISOString(),
-          user_id: screen.user_id,
         },
         user.id,
         { nameSuffix: " (副本)" }
@@ -209,7 +208,7 @@ const Share = () => {
     );
   }
 
-  const authorLabel = screen.user_id ? `${screen.user_id.slice(0, 8)}…` : "匿名用户";
+  const authorLabel = "匿名用户";
   const lastUpdatedLabel = formatDateTime(screen.updated_at || screen.created_at);
 
   return (

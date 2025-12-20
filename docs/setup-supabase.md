@@ -15,8 +15,9 @@ npm run dev
    - `VITE_SUPABASE_URL`, `VITE_SUPABASE_PROJECT_ID`, `VITE_SUPABASE_PUBLISHABLE_KEY`
    - Optional for scripts: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ACCESS_TOKEN`
 2) Apply schema: run `supabase db push` (with the repo migrations) or execute `scripts/supabase/schema.sql` in the SQL editor.
-3) Verify RLS policies on `screens`, `user_pins`, `screen_layouts` (owner-only, except public read on published screens).
-4) Regenerate types against the project:
+3) Verify RLS policies on `screens`, `user_pins`, `screen_layouts` (owner-only; public share reads via `get_public_screen_by_token`, no broad SELECT policy). Confirm `screens_public_no_sensitive` constraint exists.
+4) Enable leaked password protection in Supabase Auth settings (Dashboard > Auth > Security).
+5) Regenerate types against the project:
 ```bash
 SUPABASE_PROJECT_REF=<ref> npm run supabase:types
 ```
@@ -28,4 +29,3 @@ SUPABASE_PROJECT_REF=<ref> npm run supabase:types
 ## Troubleshooting
 - If `npm run supabase:types` fails: ensure `SUPABASE_PROJECT_REF` and auth token (`SUPABASE_ACCESS_TOKEN` or `supabase login`) are set.
 - If local CLI ports differ, update `VITE_SUPABASE_URL` accordingly.
-

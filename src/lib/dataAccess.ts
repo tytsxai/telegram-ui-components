@@ -26,6 +26,9 @@ export interface DataAccessOptions {
 
 type ScreenRow = Database["public"]["Tables"]["screens"]["Row"];
 type LayoutRow = Database["public"]["Tables"]["screen_layouts"]["Row"];
+type PublicScreenResult = Database["public"]["Functions"]["get_public_screen_by_token"]["Returns"];
+type PublicScreenRow = PublicScreenResult extends (infer Row)[] ? Row : PublicScreenResult;
+type ScreenCopySource = Pick<ScreenRow, "name" | "message_content" | "keyboard" | "is_public" | "share_token">;
 
 /**
  * SupabaseDataAccess centralizes persistence operations with retries,
@@ -153,7 +156,7 @@ export class SupabaseDataAccess {
     });
   }
 
-  async getPublicScreenByToken(token: string, options?: { signal?: AbortSignal }): Promise<ScreenRow | null> {
+  async getPublicScreenByToken(token: string, options?: { signal?: AbortSignal }): Promise<PublicScreenRow | null> {
     return this.run("select", "screens", async () => {
       const baseQuery = this.client.rpc("get_public_screen_by_token", { token });
       const query = options?.signal && "abortSignal" in baseQuery
@@ -163,11 +166,11 @@ export class SupabaseDataAccess {
       const { data, error } = await query;
       if (error) throw error;
       const normalized = Array.isArray(data) ? data[0] : data;
-      return (normalized as ScreenRow) ?? null;
+      return (normalized as PublicScreenRow) ?? null;
     });
   }
 
-  async copyScreenForUser(source: ScreenRow, userId: string, options?: { nameSuffix?: string }) {
+  async copyScreenForUser(source: ScreenCopySource, userId: string, options?: { nameSuffix?: string }) {
     const nameSuffix = options?.nameSuffix ?? " (副本)";
     const payload: SaveScreenInput = {
       user_id: userId,

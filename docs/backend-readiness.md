@@ -5,6 +5,7 @@ Target: keep app and Supabase in sync, with strict RLS and typed client coverage
 ## Schema & Migrations
 - [ ] Confirm `scripts/supabase/schema.sql` and `supabase/migrations/*` applied to target project (tables: `screens`, `user_pins`, `screen_layouts`).
 - [ ] Verify RLS enabled on all three tables; ensure policies exist for select/insert/update/delete (owner-only). Public share reads should go through `get_public_screen_by_token` RPC, not a broad SELECT policy.
+- [ ] Ensure `screens_public_no_sensitive` constraint exists to block public screens with wallet/address data.
 - [ ] Enable `pgcrypto` extension if `gen_random_uuid()` is used for `screens.id`.
 - [ ] CI guard: GitHub Actions workflow runs `npm run lint && npm run build` on every push/PR.
 - [ ] Types guard: regenerate types from live project. See `docs/supabase-types-regeneration.md`.
@@ -19,6 +20,7 @@ Target: keep app and Supabase in sync, with strict RLS and typed client coverage
 ## Environment
 - [ ] Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` for each environment (dev/stage/prod); avoid sharing anon keys across envs.
 - [ ] Add `SUPABASE_SERVICE_ROLE_KEY` only to server-side contexts (never shipped to client).
+- [ ] Enable leaked password protection in Supabase Auth settings for hosted projects.
 - [ ] Run `npm run check:env` (or `npm run build:prod`) in release pipelines to catch missing/placeholder/insecure keys.
 
 ## Data & RLS Validation

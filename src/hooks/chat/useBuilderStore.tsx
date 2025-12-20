@@ -47,6 +47,13 @@ const isNetworkError = (error: unknown) => {
   return message.includes("Failed to fetch") || message.includes("NetworkError");
 };
 
+const isSensitiveShareError = (error: unknown) => {
+  if (!error || typeof error !== "object") return false;
+  const message = (error as { message?: string }).message ?? "";
+  const code = (error as { code?: string }).code ?? "";
+  return code === "23514" || message.includes("screens_public_no_sensitive");
+};
+
 export const useBuilderStore = () => {
   const navigate = useNavigate();
   const messageBubbleRef = useRef<MessageBubbleHandle>(null);
@@ -895,6 +902,10 @@ export const useBuilderStore = () => {
       completeOnboardingStep("share");
     } catch (error) {
       console.error("Error generating share link:", error);
+      if (isSensitiveShareError(error)) {
+        toast.error("分享内容包含敏感信息，无法公开");
+        return;
+      }
       toast.error("生成分享链接失败");
     }
   }, [buildShareUrl, completeOnboardingStep, dataAccess, generateShareToken, hasBrokenLinks, resolveEntryScreen, screens, updateShareState, user, withShareStatus]);
@@ -925,6 +936,10 @@ export const useBuilderStore = () => {
       completeOnboardingStep("share");
     } catch (error) {
       console.error("Error rotating share link:", error);
+      if (isSensitiveShareError(error)) {
+        toast.error("分享内容包含敏感信息，无法公开");
+        return;
+      }
       toast.error("刷新分享链接失败");
     }
   }, [buildShareUrl, completeOnboardingStep, dataAccess, generateShareToken, resolveEntryScreen, updateShareState, user, withShareStatus]);
