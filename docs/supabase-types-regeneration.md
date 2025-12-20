@@ -27,7 +27,7 @@ Purpose: keep `src/integrations/supabase/types.ts` aligned with the live Supabas
   SUPABASE_ANON_KEY=<anon_or_publishable_key> \
   npm run smoke:rls
   ```
-  This provisions two temp users, asserts RLS for `screens`/`user_pins`/`screen_layouts`, verifies public share readability, and cleans up.
+  This provisions two temp users, asserts RLS for `screens`/`user_pins`/`screen_layouts`, verifies public share readability via RPC (and blocks direct SELECT), and cleans up.
 
 ## GitHub Actions
 - `.github/workflows/supabase-types.yml` runs weekly + on manual trigger.

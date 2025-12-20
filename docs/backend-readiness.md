@@ -4,7 +4,7 @@ Target: keep app and Supabase in sync, with strict RLS and typed client coverage
 
 ## Schema & Migrations
 - [ ] Confirm `scripts/supabase/schema.sql` and `supabase/migrations/*` applied to target project (tables: `screens`, `user_pins`, `screen_layouts`).
-- [ ] Verify RLS enabled on all three tables; ensure policies exist for select/insert/update/delete (owner-only except public read on `screens.is_public = true`).
+- [ ] Verify RLS enabled on all three tables; ensure policies exist for select/insert/update/delete (owner-only). Public share reads should go through `get_public_screen_by_token` RPC, not a broad SELECT policy.
 - [ ] Enable `pgcrypto` extension if `gen_random_uuid()` is used for `screens.id`.
 - [ ] CI guard: GitHub Actions workflow runs `npm run lint && npm run build` on every push/PR.
 - [ ] Types guard: regenerate types from live project. See `docs/supabase-types-regeneration.md`.
@@ -23,7 +23,7 @@ Target: keep app and Supabase in sync, with strict RLS and typed client coverage
 
 ## Data & RLS Validation
 - [ ] Smoke test with anon key: create/update/delete screens as the signed-in user; ensure other users cannot access non-public screens.
-- [ ] Public share flow: ensure `/share/:token` only returns `is_public = true` rows and ignores tokens of private screens.
+- [ ] Public share flow: ensure `/share/:token` reads via `get_public_screen_by_token` (token-based RPC) and ignores tokens for private screens; direct SELECT on `screens` should remain owner-only.
 - [ ] Cloud persistence: verify `user_pins` and `screen_layouts` read/write succeed under RLS; test offline fallback to local cache.
 
 ## Reliability & Observability
