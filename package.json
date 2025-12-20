@@ -1,7 +1,29 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "telegram-ui-builder",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Visual workbench for Telegram Bot messages + inline keyboards + multi-screen flows.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tytsxai/telegram-ui-builder.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tytsxai/telegram-ui-builder/issues"
+  },
+  "homepage": "https://github.com/tytsxai/telegram-ui-builder#readme",
+  "keywords": [
+    "telegram",
+    "telegram-bot",
+    "inline-keyboard",
+    "ui-builder",
+    "flow",
+    "workflow",
+    "react",
+    "supabase",
+    "vite",
+    "shadcn-ui"
+  ],
   "type": "module",
   "scripts": {
     "dev": "vite",

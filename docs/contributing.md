@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve Telegram UI Components! This guide keeps changes consistent and CI-friendly.
+Thanks for helping improve Telegram UI Builder! This guide keeps changes consistent and CI-friendly.
 
 ## Workflow
 - Package manager: **npm** (lockfile committed). Use `npm ci` for clean installs.
@@ -32,4 +32,3 @@ Thanks for helping improve Telegram UI Components! This guide keeps changes cons
 - [ ] Supabase types checked (if schema touched).
 - [ ] UI changes include a brief description or screenshot/GIF.
 - [ ] Accessibility considered (focus, keyboard, labels).
-

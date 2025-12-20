@@ -15,7 +15,9 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
 
-const REPO_URL = "https://github.com/tytsxai/telegram-ui-components";
+const REPO_URL = "https://github.com/tytsxai/telegram-ui-builder";
+const ROUTER_BASENAME =
+  import.meta.env.BASE_URL === "/" ? undefined : import.meta.env.BASE_URL.replace(/\/$/, "");
 
 type BadgePos = { x: number; y: number };
 
@@ -133,7 +135,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
+        <BrowserRouter basename={ROUTER_BASENAME}>
           <Suspense
             fallback={
               <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">

@@ -1,6 +1,25 @@
-# Telegram UI Components
+# Telegram UI Builder
+
+[![CI](https://github.com/tytsxai/telegram-ui-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/tytsxai/telegram-ui-builder/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/tytsxai/telegram-ui-builder)](LICENSE)
 
 一个可视化工作台，用来设计 Telegram 机器人消息和 inline keyboard 流程；带全屏编辑器、关系图、离线/云端持久化、导入导出、一键分享。Built with Vite + React + TypeScript + Tailwind + shadcn-ui.
+
+快速链接：
+- Repo: https://github.com/tytsxai/telegram-ui-builder
+- Changelog: `CHANGELOG.md`
+- Contributing: `docs/contributing.md`
+- Security: `SECURITY.md`
+
+免责声明：Telegram 是 Telegram Messenger LLP 的商标。本项目为第三方工具，与 Telegram 官方无隶属/背书关系。
+
+## Online demo (GitHub Pages)
+
+如果你没有自定义域名，可以直接使用 GitHub Pages 作为“官方入口”：
+
+- URL: https://tytsxai.github.io/telegram-ui-builder/
+- 部署方式：推送到 `main` 分支后，GitHub Actions 会自动构建并发布（见 `.github/workflows/pages.yml`）
+- 首次启用：在 GitHub 仓库 `Settings → Pages` 中，将 `Build and deployment` 设为 `GitHub Actions`
 
 ## 目录 / Table of contents
 - TL;DR (最短路径)
@@ -17,8 +36,8 @@
 
 ## TL;DR
 ```bash
-git clone https://github.com/tytsxai/telegram-ui-components.git
-cd telegram-ui-components
+git clone https://github.com/tytsxai/telegram-ui-builder.git
+cd telegram-ui-builder
 npm ci
 cp .env.example .env # 填写你的 Supabase 项目/本地 dev 实例
 npm run dev

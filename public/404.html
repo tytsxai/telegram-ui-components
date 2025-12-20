@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Telegram UI Builder</title>
+    <script type="text/javascript">
+      // Single Page Apps for GitHub Pages
+      // https://github.com/rafgraph/spa-github-pages
+      (function (l) {
+        if (l.pathname.split("/").length > 2) {
+          l.replace(
+            l.protocol +
+              "//" +
+              l.hostname +
+              (l.port ? ":" + l.port : "") +
+              "/telegram-ui-builder/?" +
+              l.pathname
+                .slice(1)
+                .split("/")
+                .slice(1)
+                .join("/")
+                .replace(/&/g, "~and~") +
+              (l.search ? "&" + l.search.slice(1).replace(/&/g, "~and~") : "") +
+              l.hash
+          );
+        } else {
+          l.replace(l.protocol + "//" + l.hostname + (l.port ? ":" + l.port : "") + "/telegram-ui-builder/");
+        }
+      })(window.location);
+    </script>
+  </head>
+  <body></body>
+</html>
+
