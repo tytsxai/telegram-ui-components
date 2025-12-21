@@ -36,8 +36,7 @@ type OfflineQueueSyncArgs = {
 
 const safeRandomId = () => {
   try {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      // @ts-expect-error randomUUID exists in modern browsers
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
       return crypto.randomUUID();
     }
   } catch {
@@ -123,7 +122,7 @@ export const useOfflineQueueSync = (args: OfflineQueueSyncArgs) => {
             ? ({
                 ...s,
                 message_content: updatePayload.message_content ?? s.message_content,
-                keyboard: updatePayload.keyboard ? cloneKeyboard(updatePayload.keyboard as KeyboardRow[]) : s.keyboard,
+                keyboard: updatePayload.keyboard ? cloneKeyboard(updatePayload.keyboard as unknown as KeyboardRow[]) : s.keyboard,
                 name: updatePayload.name ?? s.name,
                 updated_at: updatePayload.updated_at ?? s.updated_at,
               } as Screen)
@@ -164,24 +163,24 @@ export const useOfflineQueueSync = (args: OfflineQueueSyncArgs) => {
             const saved = await dataAccess.saveScreen(item.payload);
             if (saved) {
               setScreens((prev) => {
-                const idx = prev.findIndex((s) => s.id === (item.payload.id ?? (saved as Screen).id));
+                const idx = prev.findIndex((s) => s.id === (item.payload.id ?? (saved as unknown as Screen).id));
                 if (idx === -1) return prev;
                 const next = [...prev];
-                next[idx] = { ...(saved as Screen), keyboard: (saved as Screen).keyboard as KeyboardRow[] } as Screen;
+                next[idx] = { ...(saved as unknown as Screen), keyboard: (saved as unknown as Screen).keyboard as unknown as KeyboardRow[] } as Screen;
                 return next;
               });
               setLastSavedSnapshot({
                 messageContent: item.payload.message_content,
-                keyboard: cloneKeyboard(item.payload.keyboard as KeyboardRow[]),
+                keyboard: cloneKeyboard(item.payload.keyboard as unknown as KeyboardRow[]),
               });
-              setCurrentScreenId((current) => current ?? (saved as Screen).id);
+              setCurrentScreenId(item.payload.id ?? (saved as unknown as Screen).id);
             }
           } else {
             const updated = await dataAccess.updateScreen({ screenId: item.payload.id, update: item.payload.update });
             setScreens((prev) =>
               prev.map((s) =>
                 s.id === item.payload.id
-                  ? ({ ...(updated as Screen), keyboard: (updated as Screen).keyboard as KeyboardRow[] } as Screen)
+                  ? ({ ...(updated as unknown as Screen), keyboard: (updated as unknown as Screen).keyboard as unknown as KeyboardRow[] } as Screen)
                   : s,
               ),
             );
@@ -189,7 +188,7 @@ export const useOfflineQueueSync = (args: OfflineQueueSyncArgs) => {
               setLastSavedSnapshot({
                 messageContent: (item.payload.update.message_content as string) ?? serializeMessagePayload(),
                 keyboard: item.payload.update.keyboard
-                  ? cloneKeyboard(item.payload.update.keyboard as KeyboardRow[])
+                  ? cloneKeyboard(item.payload.update.keyboard as unknown as KeyboardRow[])
                   : cloneKeyboard(keyboard),
               });
             }

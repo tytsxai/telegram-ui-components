@@ -63,7 +63,7 @@ export const useBuilderStore = () => {
   const [newScreenName, setNewScreenName] = useState("");
   const [flowDiagramOpen, setFlowDiagramOpen] = useState(false);
   const [circularDialogOpen, setCircularDialogOpen] = useState(false);
-  const [detectedCircularPaths, setDetectedCircularPaths] = useState<string[][]>([]);
+  const [detectedCircularPaths, setDetectedCircularPaths] = useState<Array<{ path: string[]; screenNames: string[] }>>([]);
   const [allowCircular, setAllowCircular] = useState(false);
   const [templateLibraryOpen, setTemplateLibraryOpen] = useState(false);
   const [onboardingProgress, setOnboardingProgress] = useState<OnboardingProgress>({ template: false, preview: false, share: false });
@@ -288,7 +288,7 @@ export const useBuilderStore = () => {
   const handleApplyTemplate = useCallback(
     (template: TemplateDefinition) => {
       const result = loadTemplate(template);
-      if (!result.ok) {
+      if (!result.ok && 'error' in result) {
         toast.error(result.error);
         return;
       }
@@ -325,7 +325,7 @@ export const useBuilderStore = () => {
       user_id: user.id,
       name: newScreenName,
       message_content: serializeMessagePayload(),
-      keyboard: keyboard as Json,
+      keyboard: keyboard as unknown as Json,
       is_public: false,
       share_token: null,
     };
@@ -339,7 +339,7 @@ export const useBuilderStore = () => {
       const savedScreen = await saveScreen(payload);
       if (savedScreen) {
         applyScreenState({
-          ...(savedScreen as Screen),
+          ...(savedScreen as unknown as Screen),
           keyboard: keyboard as KeyboardRow[],
           message_content: serializeMessagePayload(),
           parse_mode: parseMode,
@@ -388,7 +388,7 @@ export const useBuilderStore = () => {
 
     const updatePayload: TablesUpdate<"screens"> = {
       message_content: serializeMessagePayload(),
-      keyboard: keyboard as Json,
+      keyboard: keyboard as unknown as Json,
       updated_at: new Date().toISOString(),
     };
 
@@ -762,9 +762,7 @@ export const useBuilderStore = () => {
   const generateShareToken = useCallback(() => {
     if (typeof crypto !== "undefined") {
       try {
-        // @ts-expect-error browser crypto
-        if (crypto.randomUUID) {
-          // @ts-expect-error randomUUID polyfill
+        if (typeof crypto.randomUUID === "function") {
           return crypto.randomUUID();
         }
         if (crypto.getRandomValues) {
@@ -1362,6 +1360,7 @@ export const useBuilderStore = () => {
     centerCanvasProps,
     bottomPanelProps,
     dialogState,
+    workbenchStatusProps,
   };
 };
 

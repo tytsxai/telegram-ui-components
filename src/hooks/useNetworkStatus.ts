@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 
-export const useNetworkStatus = () => {
+interface NetworkStatusResult {
+    isOffline: boolean;
+    isOnline: boolean;
+}
+
+/**
+ * Hook that returns both isOffline (boolean) for backward compatibility
+ * and an object with isOnline property for components that need it.
+ */
+export const useNetworkStatus = (): boolean & NetworkStatusResult => {
     const isClient = typeof window !== "undefined" && typeof navigator !== "undefined";
     const [isOffline, setIsOffline] = useState(() => (isClient ? !navigator.onLine : false));
 
@@ -25,5 +34,11 @@ export const useNetworkStatus = () => {
         };
     }, [isClient]);
 
-    return isOffline;
+    // Return a value that works as boolean (primitive) and has object properties
+    // This maintains backward compatibility while adding new properties
+    const result = isOffline as boolean & NetworkStatusResult;
+    Object.defineProperty(result, 'isOffline', { value: isOffline, enumerable: true });
+    Object.defineProperty(result, 'isOnline', { value: !isOffline, enumerable: true });
+
+    return result;
 };

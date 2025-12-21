@@ -2,7 +2,7 @@ import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import TemplateFlowDiagram from "../TemplateFlowDiagram";
-import { __getLatestProps } from "reactflow";
+// __getLatestProps is provided by our mock below
 
 type MockNode = { id: string; data?: { label?: React.ReactNode }; position?: { x: number; y: number } };
 type MockChange = { id: string; position?: { x: number; y: number } };
@@ -78,12 +78,11 @@ vi.mock("reactflow", () => {
 });
 
 beforeAll(() => {
-  // @ts-expect-error jsdom missing ResizeObserver
   global.ResizeObserver = class {
     observe() {}
     unobserve() {}
     disconnect() {}
-  };
+  } as unknown as typeof ResizeObserver;
 });
 
 const makeScreen = (id: string, links: string[] = []) => ({
@@ -106,18 +105,16 @@ const makeScreen = (id: string, links: string[] = []) => ({
 describe("TemplateFlowDiagram", () => {
   beforeEach(() => {
     // Provide ResizeObserver for Radix UI internals
-    // @ts-expect-error jsdom polyfill
     global.ResizeObserver = class {
       observe() {}
       unobserve() {}
       disconnect() {}
-    };
+    } as unknown as typeof ResizeObserver;
     localStorage.clear();
   });
 
   afterEach(() => {
-    // @ts-expect-error cleanup
-    delete global.ResizeObserver;
+    (global as unknown as { ResizeObserver?: unknown }).ResizeObserver = undefined;
   });
 
   it("renders a cycle badge when screens form a loop", async () => {
@@ -146,13 +143,13 @@ describe("TemplateFlowDiagram", () => {
       />,
     );
 
-    const getLatestProps = __getLatestProps as unknown as () => MockReactFlowProps | null;
-    expect(getLatestProps()?.nodes?.find((n) => n.id === "c")).toBeDefined();
+    const getLatestProps = (globalThis as unknown as { __getLatestProps?: () => MockReactFlowProps | null }).__getLatestProps;
+    expect(getLatestProps?.()?.nodes?.find((n) => n.id === "c")).toBeDefined();
 
     fireEvent.click(screen.getByLabelText("隐藏孤立"));
 
     await waitFor(() => {
-      expect(getLatestProps()?.nodes?.find((n) => n.id === "c")).toBeUndefined();
+      expect(getLatestProps?.()?.nodes?.find((n) => n.id === "c")).toBeUndefined();
     });
   });
 
@@ -170,8 +167,8 @@ describe("TemplateFlowDiagram", () => {
     );
 
     await waitFor(() => {
-      const getLatestProps = __getLatestProps as unknown as () => MockReactFlowProps | null;
-      const props = getLatestProps();
+      const getLatestProps = (globalThis as unknown as { __getLatestProps?: () => MockReactFlowProps | null }).__getLatestProps;
+      const props = getLatestProps?.();
       expect(props?.nodes?.find((n) => n.id === "home")?.position).toMatchObject({ x: 120, y: 80 });
     });
   });

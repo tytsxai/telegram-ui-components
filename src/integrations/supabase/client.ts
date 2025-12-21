@@ -29,7 +29,7 @@ const authStorage =
     ? window.localStorage
     : undefined;
 
-const clientOptions: SupabaseClientOptions<Database> = {
+const clientOptions: SupabaseClientOptions<"public"> = {
   auth: {
     storage: authStorage,
     persistSession: true,
@@ -37,8 +37,8 @@ const clientOptions: SupabaseClientOptions<Database> = {
   },
 };
 
-export const supabase: SupabaseClient<Database> = createClient<Database>(
+export const supabase = createClient<Database>(
   SUPABASE_URL,
   SUPABASE_PUBLISHABLE_KEY,
-  clientOptions,
+  clientOptions as SupabaseClientOptions<"public">,
 );

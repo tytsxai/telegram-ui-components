@@ -56,7 +56,7 @@ export const useSupabaseSync = (user: User | null) => {
         setIsLoading(true);
         const requestId = createRequestId();
         try {
-            const pendingStatus = { state: "pending", requestId, message: "加载模版中" };
+            const pendingStatus: SyncStatus = { state: "pending", requestId, message: "加载模版中" };
             setShareSyncStatus(pendingStatus);
             logSyncEvent("share", pendingStatus, { action: "load_screens" });
             const result = await withRetry(async () => {
@@ -65,23 +65,26 @@ export const useSupabaseSync = (user: User | null) => {
                     .select('*')
                     .eq('user_id', user.id)
                     .order('created_at', { ascending: true });
-                const { data, error } = await (("abortSignal" in screensQuery)
-                    ? // @ts-expect-error abortSignal is available in supabase-js v2
-                    screensQuery.abortSignal(controller.signal)
-                    : screensQuery);
+                const { data, error } = await screensQuery;
                 if (error) throw error;
-                const pinsQuery = supabase
-                    .from('user_pins')
-                    .select('pinned_ids')
-                    .eq('user_id', user.id)
-                    .single();
-                const { data: pinsData, error: pinsError } = await (("abortSignal" in pinsQuery)
-                    ? // @ts-expect-error abortSignal is available in supabase-js v2
-                    pinsQuery.abortSignal(controller.signal)
-                    : pinsQuery);
+                // user_pins table may not exist in all environments
+                let pinsData: { pinned_ids?: string[] } | null = null;
+                let pinsError: unknown = null;
+                try {
+                    const pinsQuery = (supabase as unknown as { from: (table: string) => { select: (cols: string) => { eq: (col: string, val: string) => { single: () => Promise<{ data: { pinned_ids?: string[] } | null; error: unknown }> } } } }).from('user_pins')
+                        .select('pinned_ids')
+                        .eq('user_id', user.id)
+                        .single();
+                    const result = await pinsQuery;
+                    pinsData = result.data;
+                    pinsError = result.error;
+                } catch (e) {
+                    pinsError = e;
+                }
 
-                if (pinsError && pinsError.code !== 'PGRST116') {
+                if (pinsError && (pinsError as { code?: string })?.code !== 'PGRST116') {
                     // Pins are a non-critical enhancement; log and continue with empty pins.
+                    console.error("Error loading pins:", pinsError);
                     console.error("Error loading pins:", pinsError);
                     return {
                         screens: data as unknown as Screen[],
@@ -107,7 +110,7 @@ export const useSupabaseSync = (user: User | null) => {
             if (controller.signal.aborted) return;
             setScreens(result.screens);
             setPinnedIds(result.pins);
-            const successStatus = { state: "success", requestId, at: Date.now(), message: "已加载" };
+            const successStatus: SyncStatus = { state: "success", requestId, at: Date.now(), message: "已加载" };
             setShareSyncStatus(successStatus);
             logSyncEvent("share", successStatus, { action: "load_screens" });
 
@@ -133,14 +136,14 @@ export const useSupabaseSync = (user: User | null) => {
         if (!user) return null;
         setShareLoading(true);
         const requestId = createRequestId();
-        const pendingStatus = { state: "pending", requestId, message: "保存中" };
+        const pendingStatus: SyncStatus = { state: "pending", requestId, message: "保存中" };
         setShareSyncStatus(pendingStatus);
         logSyncEvent("share", pendingStatus, { action: "save_screen" });
         try {
             const data = await dataAccess.saveScreen(payload);
             setScreens(prev => [...prev, data as unknown as Screen]);
             toast.success("Screen saved");
-            const successStatus = { state: "success", requestId, at: Date.now(), message: "保存成功" };
+            const successStatus: SyncStatus = { state: "success", requestId, at: Date.now(), message: "保存成功" };
             setShareSyncStatus(successStatus);
             logSyncEvent("share", successStatus, { action: "save_screen", targetId: (data as { id?: string }).id });
             return data;

@@ -9,8 +9,7 @@ export interface SyncStatus {
 
 export const makeRequestId = () => {
   try {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      // @ts-expect-error randomUUID exists in modern runtimes
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
       return crypto.randomUUID() as string;
     }
   } catch (e) {
