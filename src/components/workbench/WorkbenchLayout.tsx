@@ -30,8 +30,8 @@ export const WorkbenchLayout: React.FC<WorkbenchLayoutProps> = ({
   isOnline = true,
 }) => {
   const [isBottomCollapsed, setIsBottomCollapsed] = useState(false);
-  const network = useNetworkStatus();
-  const online = isOnline ?? network.isOnline;
+  const networkOffline = useNetworkStatus();
+  const online = isOnline ?? !networkOffline;
 
   // 默认在小屏下折叠底部面板，避免遮挡
   useEffect(() => {

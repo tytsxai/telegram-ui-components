@@ -92,6 +92,13 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
     return result;
   }, []);
 
+  // Validate URL protocol to prevent XSS attacks
+  const isValidUrlProtocol = useCallback((url: string): boolean => {
+    const trimmed = url.trim().toLowerCase();
+    // Only allow http:// and https:// protocols
+    return /^https?:\/\//i.test(trimmed);
+  }, []);
+
   const applyFormat = useCallback((format: 'bold' | 'italic' | 'code' | 'link', url?: string) => {
     if (!editableRef.current) return;
     const selection = window.getSelection();
@@ -105,9 +112,11 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
       document.execCommand('italic');
     } else if (format === 'link') {
       const safeUrl = (url || '').trim();
-      if (safeUrl) {
+      // Validate URL protocol to prevent javascript:, data:, vbscript: XSS attacks
+      if (safeUrl && isValidUrlProtocol(safeUrl)) {
         document.execCommand('createLink', false, safeUrl);
       }
+      // Silently reject invalid URLs - no link will be created
     } else if (format === 'code') {
       const text = selection.toString();
       if (!text) return;
@@ -131,7 +140,7 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
       lastContentRef.current = markup;
       if (onContentChange) onContentChange(markup);
     }, 0);
-  }, [escapeHtml, formatMessage, htmlToMarkup, onContentChange]);
+  }, [escapeHtml, formatMessage, htmlToMarkup, isValidUrlProtocol, onContentChange]);
 
   useImperativeHandle(ref, () => ({
     applyFormat,

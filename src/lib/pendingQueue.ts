@@ -43,12 +43,11 @@ const now = () => Date.now();
 const MAX_FAILURE_LOG = 5;
 const genId = () => {
   try {
-    // @ts-expect-error crypto may not exist in all environments
-    if (typeof crypto !== "undefined" && crypto.randomUUID) {
-      // @ts-expect-error crypto.randomUUID exists in browsers/jsdom
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
       return crypto.randomUUID();
     }
   } catch (e) {
+    void e;
     void e;
   }
   return `pending_${now()}_${Math.random().toString(16).slice(2)}`;
