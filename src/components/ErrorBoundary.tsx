@@ -2,6 +2,7 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from './ui/button';
 import { AlertCircle, RefreshCw, Home } from 'lucide-react';
 import { reportError } from '@/lib/errorReporting';
+import { getAppBaseUrl } from '@/lib/appUrl';
 
 interface Props {
   children: ReactNode;
@@ -67,7 +68,7 @@ class ErrorBoundary extends Component<Props, State> {
   };
 
   handleGoHome = () => {
-    window.location.href = '/';
+    window.location.href = getAppBaseUrl();
   };
 
   render() {

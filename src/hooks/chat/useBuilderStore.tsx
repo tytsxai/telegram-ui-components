@@ -21,6 +21,7 @@ import { MessageBubbleHandle } from "@/components/MessageBubble";
 import { makeRequestId } from "@/types/sync";
 import { recordAuditEvent } from "@/lib/auditTrail";
 import { cloneKeyboard, createDefaultKeyboard } from "@/lib/keyboard/factory";
+import { buildAppUrl } from "@/lib/appUrl";
 
 type ImportInlineButton = Partial<KeyboardButton> & { text?: string };
 type ImportInlineKeyboard = ImportInlineButton[][];
@@ -804,7 +805,7 @@ export const useBuilderStore = () => {
     [],
   );
 
-  const buildShareUrl = useCallback((token: string) => `${window.location.origin}/share/${token}`, []);
+  const buildShareUrl = useCallback((token: string) => buildAppUrl(`share/${token}`), []);
 
   const updateShareState = useCallback((updated: Screen) => {
     setScreens((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));

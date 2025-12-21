@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { getAppBaseUrl } from "@/lib/appUrl";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -44,7 +45,7 @@ const Auth = () => {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/`
+            emailRedirectTo: getAppBaseUrl(),
           }
         });
         if (error) throw error;
