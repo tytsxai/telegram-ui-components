@@ -42,43 +42,46 @@ type LoadTemplateResult = { ok: true } | { ok: false; error: string };
 export const useChatState = () => {
     const [messageContent, setMessageContent] = useState("Welcome to the Telegram UI Builder!\n\nEdit this message directly.\n\nFormatting:\n**bold text** for bold\n`code blocks` for code");
     const [keyboard, setKeyboard] = useState<KeyboardRow[]>(createDefaultKeyboard());
-    const [history, setHistory] = useState<{ messageContent: string; keyboard: KeyboardRow[] }[]>([]);
-    const [historyIndex, setHistoryIndex] = useState(-1);
+    const [historyState, setHistoryState] = useState<{
+        history: { messageContent: string; keyboard: KeyboardRow[] }[];
+        index: number;
+    }>({ history: [], index: -1 });
     const [editableJSON, setEditableJSON] = useState("");
     const [parseMode, setParseMode] = useState<ParseMode>("HTML");
     const [messageType, setMessageType] = useState<MessageType>("text");
     const [mediaUrl, setMediaUrl] = useState("");
 
     const pushToHistory = useCallback((content: string, kbd: KeyboardRow[]) => {
-        setHistory((prev) => {
-            const newHistory = prev.slice(0, historyIndex + 1);
+        setHistoryState((prev) => {
+            const newHistory = prev.history.slice(0, prev.index + 1);
             newHistory.push({ messageContent: content, keyboard: cloneKeyboard(kbd) });
             if (newHistory.length > 50) newHistory.shift();
-            return newHistory;
+            return { history: newHistory, index: Math.min(newHistory.length - 1, 49) };
         });
-        setHistoryIndex((prev) => Math.min(prev + 1, 49));
-    }, [historyIndex]);
+    }, []);
 
     const undo = useCallback(() => {
-        if (historyIndex > 0) {
-            const prevState = history[historyIndex - 1];
+        setHistoryState((prev) => {
+            if (prev.index <= 0) return prev;
+            const prevState = prev.history[prev.index - 1];
             setMessageContent(prevState.messageContent);
             setKeyboard(cloneKeyboard(prevState.keyboard));
-            setHistoryIndex(historyIndex - 1);
-        }
-    }, [history, historyIndex]);
+            return { ...prev, index: prev.index - 1 };
+        });
+    }, []);
 
     const redo = useCallback(() => {
-        if (historyIndex < history.length - 1) {
-            const nextState = history[historyIndex + 1];
+        setHistoryState((prev) => {
+            if (prev.index >= prev.history.length - 1) return prev;
+            const nextState = prev.history[prev.index + 1];
             setMessageContent(nextState.messageContent);
             setKeyboard(cloneKeyboard(nextState.keyboard));
-            setHistoryIndex(historyIndex + 1);
-        }
-    }, [history, historyIndex]);
+            return { ...prev, index: prev.index + 1 };
+        });
+    }, []);
 
-    const canUndo = historyIndex > 0;
-    const canRedo = historyIndex < history.length - 1;
+    const canUndo = historyState.index > 0;
+    const canRedo = historyState.index < historyState.history.length - 1;
 
     const formatText = useCallback(
         (text: string, mode: ParseMode) => {

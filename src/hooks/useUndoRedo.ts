@@ -105,7 +105,6 @@ export const useUndoRedo = <T>(
 
   // 重置历史
   const reset = useCallback((newState: T) => {
-    ignoreNextUpdate.current = true;
     setHistory({
       past: [],
       present: newState,

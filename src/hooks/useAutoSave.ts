@@ -114,11 +114,15 @@ export const useAutoSave = <TData,>({
   // 页面卸载前保存
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      saveToLocalStorage();
-      
-      // 检查是否有未保存的更改
+      // Check dirty state BEFORE saving
       const currentData = JSON.stringify(data);
-      if (currentData !== lastSavedRef.current) {
+      const isDirty = currentData !== lastSavedRef.current;
+
+      // Attempt to save
+      saveToLocalStorage();
+
+      // Warn if there were unsaved changes
+      if (isDirty) {
         e.preventDefault();
         e.returnValue = '您有未保存的更改，确定要离开吗？';
         return e.returnValue;
@@ -126,7 +130,7 @@ export const useAutoSave = <TData,>({
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
-    
+
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
