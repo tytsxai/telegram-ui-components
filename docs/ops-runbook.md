@@ -81,5 +81,6 @@
 - **Import floods**: throttle bulk inserts; verify callback_data length and entry screen validity before write.
 
 ## Verification Commands
+- `npm run security:all` (Supabase SQL scan + runtime verification)
 - `npm run lint && npm run test && npm run build`
 - `npm audit --production`

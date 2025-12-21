@@ -33,3 +33,5 @@ test-results
 playwright-report
 supabase/.temp
 .code/
+.claude/
+security-scan-report.json

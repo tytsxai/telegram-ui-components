@@ -38,7 +38,10 @@
     "check:supabase-types": "npm run supabase:types && git diff --exit-code -- src/integrations/supabase/types.ts",
     "smoke:rls": "node scripts/supabase/rls-smoke.mjs",
     "verify:migrations": "node scripts/supabase/verify-migrations.mjs",
-    "pre-deploy": "node scripts/ops/pre-deploy-check.mjs",
+    "security:scan": "node scripts/supabase/security-scan.mjs --strict",
+    "security:verify": "node scripts/supabase/verify-security.mjs",
+    "security:all": "npm run security:scan && npm run security:verify",
+    "pre-deploy": "npm run security:scan && node scripts/ops/pre-deploy-check.mjs",
     "test": "vitest run",
     "test:watch": "vitest watch",
     "test:e2e": "playwright test"

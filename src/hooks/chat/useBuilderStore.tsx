@@ -10,7 +10,7 @@ import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { useCodegen } from "@/hooks/chat/useCodegen";
 import { useAuthUser } from "@/hooks/chat/useAuthUser";
-import { validateKeyboard, validateMessageContent } from "@/lib/validation";
+import { screenContainsSensitiveData, validateKeyboard, validateMessageContent } from "@/lib/validation";
 import type { TemplateDefinition } from "@/types/templates";
 import { useOfflineQueueSync } from "@/hooks/chat/useOfflineQueueSync";
 import { readPendingOps } from "@/lib/pendingQueue";
@@ -876,6 +876,10 @@ export const useBuilderStore = () => {
       toast.error("存在指向已删除模版的按钮，请修复后再分享");
       return;
     }
+    if (screenContainsSensitiveData(entry.message_content, entry.keyboard)) {
+      toast.error("分享内容包含敏感信息，无法公开");
+      return;
+    }
 
     try {
       const result = await withShareStatus("生成分享链接", async () => {
@@ -918,6 +922,10 @@ export const useBuilderStore = () => {
     }
     const entry = resolveEntryScreen();
     if (!entry) return;
+    if (screenContainsSensitiveData(entry.message_content, entry.keyboard)) {
+      toast.error("分享内容包含敏感信息，无法公开");
+      return;
+    }
     const token = generateShareToken();
     try {
       const updated = await withShareStatus("刷新分享链接", async () => {
