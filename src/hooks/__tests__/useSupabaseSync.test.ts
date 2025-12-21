@@ -278,7 +278,7 @@ describe("useSupabaseSync", () => {
       await result.current.deleteScreen("screen-1");
     });
 
-    expect(mockDataAccess.deleteScreens).toHaveBeenCalledWith({ ids: ["screen-1"], userId: mockUser.id });
+    expect(mockDataAccess.deleteScreens).toHaveBeenCalledWith({ ids: ["screen-1"] });
     expect(result.current.screens).toHaveLength(0);
     expect(toast.success).toHaveBeenCalledWith("Screen deleted");
   });
@@ -326,7 +326,7 @@ describe("useSupabaseSync", () => {
       await result.current.deleteAllScreens();
     });
 
-    expect(mockDataAccess.deleteScreens).toHaveBeenCalledWith({ ids: ["screen-1"], userId: mockUser.id });
+    expect(mockDataAccess.deleteScreens).toHaveBeenCalledWith({ ids: ["screen-1"] });
     expect(result.current.screens).toHaveLength(0);
     expect(toast.success).toHaveBeenCalledWith("All screens deleted");
   });

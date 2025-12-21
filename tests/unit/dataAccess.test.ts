@@ -59,7 +59,7 @@ describe("SupabaseDataAccess", () => {
     const from = vi.fn().mockReturnValue({ delete: deleteSpy });
 
     const da = new SupabaseDataAccess({ from } as unknown as { from: typeof from }, { userId: "user-1" });
-    const ids = await da.deleteLayouts({ userId: "user-1", ids: ["a", "b"] });
+    const ids = await da.deleteLayouts({ ids: ["a", "b"] });
 
     expect(eqSpy).toHaveBeenCalledWith("user_id", "user-1");
     expect(inSpy).toHaveBeenCalledWith("screen_id", ["a", "b"]);
@@ -73,7 +73,7 @@ describe("SupabaseDataAccess", () => {
     const from = vi.fn().mockReturnValue({ delete: deleteSpy });
 
     const da = new SupabaseDataAccess({ from } as unknown as { from: typeof from }, { userId: "user-1" });
-    await da.deleteLayouts({ userId: "user-1" });
+    await da.deleteLayouts({});
 
     expect(eqSpy).toHaveBeenCalledWith("user_id", "user-1");
     expect(inSpy).not.toHaveBeenCalled();
@@ -86,7 +86,7 @@ describe("SupabaseDataAccess", () => {
     const from = vi.fn().mockReturnValue({ select });
 
     const da = new SupabaseDataAccess({ from } as unknown as { from: typeof from }, { userId: "user-1" });
-    const pins = await da.fetchPins({ userId: "user-1" });
+    const pins = await da.fetchPins();
 
     expect(from).toHaveBeenCalledWith("user_pins");
     expect(eqSpy).toHaveBeenCalledWith("user_id", "user-1");
@@ -100,7 +100,7 @@ describe("SupabaseDataAccess", () => {
     const from = vi.fn().mockReturnValue({ select });
 
     const da = new SupabaseDataAccess({ from } as unknown as { from: typeof from }, { userId: "user-1" });
-    const pins = await da.fetchPins({ userId: "user-1" });
+    const pins = await da.fetchPins();
 
     expect(pins).toEqual([]);
   });
@@ -112,7 +112,7 @@ describe("SupabaseDataAccess", () => {
     const from = vi.fn().mockReturnValue({ select });
 
     const da = new SupabaseDataAccess({ from } as unknown as { from: typeof from }, { userId: "user-1" });
-    await expect(da.fetchPins({ userId: "user-1" })).rejects.toEqual({ code: "500", message: "boom" });
+    await expect(da.fetchPins()).rejects.toEqual({ code: "500", message: "boom" });
   });
 
   it("logs and rethrows errors from supabase operations", async () => {
@@ -128,7 +128,7 @@ describe("SupabaseDataAccess", () => {
 
     const da = new SupabaseDataAccess({ from } as unknown as { from: typeof from }, { userId: "user-1" });
 
-    await expect(da.deleteScreens({ ids: ["s1"], userId: "user-1" })).rejects.toThrow("db down");
+    await expect(da.deleteScreens({ ids: ["s1"] })).rejects.toThrow("db down");
     expect(logSupabaseError).toHaveBeenCalledWith(expect.objectContaining({ action: "delete", table: "screens", userId: "user-1", error: failingError }));
   });
 
@@ -158,7 +158,7 @@ describe("SupabaseDataAccess", () => {
 
     await expect(da.insertScreens([])).resolves.toEqual([]);
     await expect(da.upsertLayouts([])).resolves.toEqual([]);
-    await expect(da.fetchLayouts({ userId: "user-1", ids: [] })).resolves.toEqual([]);
+    await expect(da.fetchLayouts({ ids: [] })).resolves.toEqual([]);
 
     expect(from).not.toHaveBeenCalled();
   });
@@ -187,7 +187,7 @@ describe("SupabaseDataAccess", () => {
 
     await expect(da.saveScreen({ name: "bad", message_content: "m", keyboard: [], is_public: false })).rejects.toThrow("insert failed");
     await expect(da.updateScreen({ screenId: "x", update: { message_content: "m" } })).rejects.toThrow("update failed");
-    await expect(da.deleteScreens({ ids: ["x"], userId: "user-1" })).rejects.toThrow("delete failed");
+    await expect(da.deleteScreens({ ids: ["x"] })).rejects.toThrow("delete failed");
   });
 
   it("throws when share helpers are called without a user id", async () => {
@@ -209,7 +209,7 @@ describe("SupabaseDataAccess", () => {
       const from = vi.fn().mockReturnValue({ delete: deleteSpy });
 
       const da = new SupabaseDataAccess({ from } as unknown as { from: typeof from }, { userId: "user-1" });
-      await expect(da.deleteScreens({ ids: ["s1"], userId: "user-1" })).resolves.toEqual(["s1"]);
+      await expect(da.deleteScreens({ ids: ["s1"] })).resolves.toEqual(["s1"]);
       const [, options] = withRetry.mock.calls[withRetry.mock.calls.length - 1];
       expect(String((options as { requestId: string }).requestId)).toMatch(/^req_/);
       expect(deleteSpy).toHaveBeenCalled();
@@ -231,7 +231,7 @@ describe("SupabaseDataAccess", () => {
     const rows = await da.insertScreens(payload);
 
     expect(from).toHaveBeenCalledWith("screens");
-    expect(insert).toHaveBeenCalledWith(payload);
+    expect(insert).toHaveBeenCalledWith(payload.map((row) => ({ ...row, user_id: "user-1" })));
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ id: "s1" });
   });
@@ -243,7 +243,7 @@ describe("SupabaseDataAccess", () => {
     const from = vi.fn().mockReturnValue({ select });
 
     const da = new SupabaseDataAccess({ from } as unknown as { from: typeof from }, { userId: "user-1" });
-    const rows = await da.fetchLayouts({ userId: "user-1", ids: ["s1"] });
+    const rows = await da.fetchLayouts({ ids: ["s1"] });
 
     expect(select).toHaveBeenCalledWith("screen_id,x,y");
     expect(eqSpy).toHaveBeenCalledWith("user_id", "user-1");

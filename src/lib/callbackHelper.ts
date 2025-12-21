@@ -53,16 +53,11 @@ export const buildCallbackData = (options: {
   const action = (options.action || "action").trim() || "action";
   const ttlMs = options.ttlSeconds && options.ttlSeconds > 0 ? options.ttlSeconds * 1000 : undefined;
   const nonce = options.nonce !== false;
-  let raw = manager.make(namespace, action, options.data ?? {}, { ttl: ttlMs, nonce });
+  const raw = manager.make(namespace, action, options.data ?? {}, { ttl: ttlMs, nonce });
 
-  let bytes = getByteLength(raw);
+  const bytes = getByteLength(raw);
   if (bytes > CALLBACK_DATA_MAX_BYTES) {
-    // Truncate from the end while keeping prefix/action structure intact
-    const max = CALLBACK_DATA_MAX_BYTES;
-    while (bytes > max && raw.length > 0) {
-      raw = raw.slice(0, -1);
-      bytes = getByteLength(raw);
-    }
+    throw new Error(`callback_data exceeds ${CALLBACK_DATA_MAX_BYTES} bytes (got ${bytes}). Reduce payload size.`);
   }
 
   return { value: raw, bytes };

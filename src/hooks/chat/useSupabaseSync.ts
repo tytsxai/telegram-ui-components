@@ -184,7 +184,7 @@ export const useSupabaseSync = (user: User | null) => {
         if (!user) return;
         const requestId = createRequestId();
         try {
-            await dataAccess.deleteScreens({ ids: [id], userId: user.id });
+            await dataAccess.deleteScreens({ ids: [id] });
             setScreens(prev => prev.filter(s => s.id !== id));
             toast.success("Screen deleted");
             logSyncEvent("share", { state: "success", requestId, at: Date.now(), message: "删除成功" }, { action: "delete_screen", targetId: id });
@@ -205,10 +205,10 @@ export const useSupabaseSync = (user: User | null) => {
         try {
             const ids = screens.map(s => s.id);
             if (ids.length > 0) {
-                await dataAccess.deleteScreens({ ids, userId: user.id });
+                await dataAccess.deleteScreens({ ids });
                 // Layout cleanup is optional; older dataAccess mocks may not expose deleteLayouts.
                 if (typeof (dataAccess as unknown as { deleteLayouts?: unknown }).deleteLayouts === "function") {
-                    await (dataAccess as unknown as { deleteLayouts: (args: { userId: string; ids: string[] }) => Promise<unknown> }).deleteLayouts({ userId: user.id, ids });
+                    await (dataAccess as unknown as { deleteLayouts: (args: { ids: string[] }) => Promise<unknown> }).deleteLayouts({ ids });
                 }
             }
             await dataAccess.upsertPins({ user_id: user.id, pinned_ids: [] });

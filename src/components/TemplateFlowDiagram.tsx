@@ -150,7 +150,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
     const fetchPinned = async () => {
       if (!open || !userId || (pinnedIds && pinnedIds.length > 0)) return;
       try {
-        const cloudPins = await dataAccess.fetchPins({ userId });
+        const cloudPins = await dataAccess.fetchPins();
         if (Array.isArray(cloudPins) && cloudPins.length > 0) {
           setPinnedState(cloudPins);
         }
@@ -543,11 +543,11 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
         const ids = positions.map((p) => p.id);
         if (ids.length === 0) {
           layoutSyncRef.current?.({ state: "pending", requestId, message: "清除布局中" });
-          await dataAccess.deleteLayouts({ userId });
+          await dataAccess.deleteLayouts({});
           layoutSyncRef.current?.({ state: "success", requestId, at: Date.now(), message: "已清除云端布局" });
         } else {
           layoutSyncRef.current?.({ state: "pending", requestId, message: "保存布局中" });
-          await dataAccess.deleteLayouts({ userId, ids });
+          await dataAccess.deleteLayouts({ ids });
           const payload = positions.map((p) => ({ user_id: userId, screen_id: p.id, x: p.x, y: p.y }));
           await dataAccess.upsertLayouts(payload);
           layoutSyncRef.current?.({ state: "success", requestId, at: Date.now(), message: "布局已保存到云端" });
@@ -682,7 +682,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
     try {
       const ids = screens.map(s => s.id);
       if (ids.length === 0) return false;
-      const data = await dataAccess.fetchLayouts({ userId, ids });
+      const data = await dataAccess.fetchLayouts({ ids });
       if (!data) return false;
       const m = new Map<string, { x: number; y: number }>();
       const payload: NodePositionPayload[] = [];
@@ -708,7 +708,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
     setUseSavedPositions(false);
     if (userId) {
       try {
-        await dataAccess.deleteLayouts({ userId });
+        await dataAccess.deleteLayouts({});
         layoutSyncRef.current?.({ state: "success", at: Date.now(), message: "已清空云端布局" });
       } catch (e) { /* ignore cloud errors */ }
     }

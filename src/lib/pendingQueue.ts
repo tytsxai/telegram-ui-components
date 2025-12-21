@@ -54,12 +54,21 @@ const genId = () => {
   return `pending_${now()}_${Math.random().toString(16).slice(2)}`;
 };
 
-const persist = (items: PendingItem[], userId?: string | null) => {
-  if (typeof localStorage === "undefined") return;
+export class PersistError extends Error {
+  constructor(message: string, public readonly cause?: unknown) {
+    super(message);
+    this.name = "PersistError";
+  }
+}
+
+const persist = (items: PendingItem[], userId?: string | null): boolean => {
+  if (typeof localStorage === "undefined") return false;
   try {
     localStorage.setItem(buildKey(userId), JSON.stringify(items));
+    return true;
   } catch (e) {
-    void e;
+    console.error("[PendingQueue] Failed to persist queue:", e);
+    throw new PersistError("Failed to persist offline queue. Storage may be full.", e);
   }
 };
 

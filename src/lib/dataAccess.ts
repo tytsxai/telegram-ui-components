@@ -10,7 +10,6 @@ export type UpdateScreenInput = {
 
 export type DeleteScreensInput = {
   ids: string[];
-  userId: string;
 };
 
 export type UpsertPinsInput = TablesInsert<"user_pins">;
@@ -67,9 +66,14 @@ export class SupabaseDataAccess {
   }
 
   async insertScreens(payload: SaveScreenInput[]): Promise<ScreenRow[]> {
+    const targetUserId = this.userId;
+    if (!targetUserId) {
+      throw new Error("insertScreens requires userId");
+    }
     if (payload.length === 0) return [];
+    const sanitized = payload.map((screen) => ({ ...screen, user_id: targetUserId }));
     return this.run("insert_many", "screens", async () => {
-      const { data, error } = await this.client.from("screens").insert(payload).select();
+      const { data, error } = await this.client.from("screens").insert(sanitized).select();
       if (error) throw error;
       return (data ?? []) as ScreenRow[];
     });
@@ -95,8 +99,12 @@ export class SupabaseDataAccess {
   }
 
   async deleteScreens(params: DeleteScreensInput) {
+    const targetUserId = this.userId;
+    if (!targetUserId) {
+      throw new Error("deleteScreens requires userId");
+    }
     return this.run("delete", "screens", async () => {
-      const { error } = await this.client.from("screens").delete().eq("user_id", params.userId).in("id", params.ids);
+      const { error } = await this.client.from("screens").delete().eq("user_id", targetUserId).in("id", params.ids);
       if (error) throw error;
       return params.ids;
     });
@@ -110,12 +118,16 @@ export class SupabaseDataAccess {
     });
   }
 
-  async fetchPins(params: { userId: string }): Promise<string[]> {
+  async fetchPins(): Promise<string[]> {
+    const targetUserId = this.userId;
+    if (!targetUserId) {
+      throw new Error("fetchPins requires userId");
+    }
     return this.run("select", "user_pins", async () => {
       const { data, error } = await this.client
         .from("user_pins")
         .select("pinned_ids")
-        .eq("user_id", params.userId)
+        .eq("user_id", targetUserId)
         .single();
       if (error && error.code !== "PGRST116") throw error;
       return (data?.pinned_ids as string[]) ?? [];
@@ -131,9 +143,13 @@ export class SupabaseDataAccess {
     });
   }
 
-  async deleteLayouts(params: { userId: string; ids?: string[] }) {
+  async deleteLayouts(params: { ids?: string[] }) {
+    const targetUserId = this.userId;
+    if (!targetUserId) {
+      throw new Error("deleteLayouts requires userId");
+    }
     return this.run("delete", "screen_layouts", async () => {
-      const query = this.client.from("screen_layouts").delete().eq("user_id", params.userId);
+      const query = this.client.from("screen_layouts").delete().eq("user_id", targetUserId);
       if (params.ids && params.ids.length > 0) {
         query.in("screen_id", params.ids);
       }
@@ -143,13 +159,17 @@ export class SupabaseDataAccess {
     });
   }
 
-  async fetchLayouts(params: { userId: string; ids: string[] }): Promise<LayoutRow[]> {
+  async fetchLayouts(params: { ids: string[] }): Promise<LayoutRow[]> {
+    const targetUserId = this.userId;
+    if (!targetUserId) {
+      throw new Error("fetchLayouts requires userId");
+    }
     if (params.ids.length === 0) return [];
     return this.run("select", "screen_layouts", async () => {
       const { data, error } = await this.client
         .from("screen_layouts")
         .select("screen_id,x,y")
-        .eq("user_id", params.userId)
+        .eq("user_id", targetUserId)
         .in("screen_id", params.ids);
       if (error) throw error;
       return (data ?? []) as LayoutRow[];
