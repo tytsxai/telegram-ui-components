@@ -176,8 +176,7 @@ export class SupabaseDataAccess {
         .eq("share_token", token)
         .eq("is_public", true);
       const query = options?.signal && "abortSignal" in baseQuery
-        // @ts-expect-error supabase-js v2 supports abortSignal
-        ? baseQuery.abortSignal(options.signal)
+        ? (baseQuery as unknown as { abortSignal: (signal: AbortSignal) => typeof baseQuery }).abortSignal(options.signal)
         : baseQuery;
       const { data, error } = await query.single();
       if (error) throw error;
@@ -282,9 +281,7 @@ export class SupabaseDataAccess {
 
 const safeUUID = () => {
   try {
-    // @ts-expect-error browser crypto
-    if (typeof crypto !== "undefined" && crypto.randomUUID) {
-      // @ts-expect-error randomUUID polyfill for browsers
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
       return crypto.randomUUID();
     }
   } catch (e) {

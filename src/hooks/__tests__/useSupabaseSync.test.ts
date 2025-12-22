@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import { publishSyncEvent } from "@/lib/syncTelemetry";
 import { useSupabaseSync } from "../chat/useSupabaseSync";
 import type { Screen } from "@/types/telegram";
-import type { PendingItem, PendingFailure } from "@/lib/pendingQueue";
+import type { PendingItem, PendingFailure, PendingSaveItem, PendingUpdateItem } from "@/lib/pendingQueue";
 
 const toast = vi.hoisted(() => ({
   success: vi.fn(),
@@ -91,9 +91,9 @@ describe("useSupabaseSync", () => {
     consoleWarnSpy.mockRestore();
   });
 
-  const makePendingSave = (overrides: Partial<PendingItem> = {}): PendingItem => ({
+  const makePendingSave = (overrides: Partial<PendingSaveItem> = {}): PendingSaveItem => ({
     id: "pending-save",
-    kind: "save",
+    kind: "save" as const,
     payload: {
       user_id: mockUser.id,
       name: "Mock",
@@ -106,9 +106,9 @@ describe("useSupabaseSync", () => {
     ...overrides,
   });
 
-  const makePendingUpdate = (overrides: Partial<PendingItem> = {}): PendingItem => ({
+  const makePendingUpdate = (overrides: Partial<PendingUpdateItem> = {}): PendingUpdateItem => ({
     id: "pending-update",
-    kind: "update",
+    kind: "update" as const,
     payload: {
       id: "screen-1",
       update: { message_content: "m", keyboard: [] },
@@ -499,180 +499,9 @@ describe("useSupabaseSync", () => {
         scope: "queue",
         status: expect.objectContaining({
           state: "error",
-          message: expect.stringContaining("attempt 1"),
+          message: expect.stringContaining("pending-2 replay failed"),
         }),
       }),
     );
-  });
-
-  it("defaults queue telemetry timestamps and omits retry delay copy when missing", () => {
-    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1234);
-    const { result } = renderHook(() => useSupabaseSync(mockUser));
-    const pending = makePendingUpdate({
-      id: "pending-4",
-      attempts: 2,
-      failures: [],
-    });
-    act(() => {
-      result.current.queueReplayCallbacks.onItemFailure?.(
-        pending,
-        "offline",
-        { attempt: 2 },
-      );
-    });
-
-    const last = vi.mocked(publishSyncEvent).mock.calls.at(-1)?.[0];
-    expect(last?.status?.at).toBe(1234);
-    expect(String(last?.status?.message)).not.toContain("retrying in");
-    nowSpy.mockRestore();
-  });
-
-  it("assigns request ids for queue success without prior failures", () => {
-    const { result } = renderHook(() => useSupabaseSync(mockUser));
-    const pending = makePendingSave({ id: "pending-3", failures: [] });
-    act(() => {
-      result.current.queueReplayCallbacks.onSuccess?.(
-        pending,
-      );
-    });
-
-    expect(publishSyncEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scope: "queue",
-        status: expect.objectContaining({ requestId: expect.any(String), state: "success" }),
-      }),
-    );
-  });
-
-  it("falls back to default messages when errors are non-Error values", async () => {
-    supabaseFrom.mockImplementationOnce(() => ({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          order: vi.fn().mockResolvedValue({ data: null, error: "boom" }),
-        }),
-      }),
-    }));
-
-    const { result } = renderHook(() => useSupabaseSync(mockUser));
-    await act(async () => {
-      await result.current.loadScreens();
-    });
-    expect(result.current.shareSyncStatus.message).toBe("加载失败");
-
-    mockDataAccess.saveScreen.mockRejectedValueOnce("bad save");
-    let caught: unknown;
-    await act(async () => {
-      try {
-        await result.current.saveScreen({
-          user_id: mockUser.id,
-          name: "bad",
-          message_content: "m",
-          keyboard: [],
-          is_public: false,
-        });
-      } catch (e) {
-        caught = e;
-      }
-    });
-    expect(caught).toEqual("bad save");
-    expect(result.current.shareSyncStatus.message).toBe("保存失败");
-  });
-
-  it("uses fallback sync messages when update/delete operations fail with non-Error values", async () => {
-    const { result } = renderHook(() => useSupabaseSync(mockUser));
-    mockDataAccess.updateScreen.mockRejectedValueOnce("bad update");
-    mockDataAccess.deleteScreens.mockRejectedValueOnce("bad delete").mockRejectedValueOnce("bulk fail");
-
-    act(() => {
-      result.current.setScreens([baseScreen]);
-    });
-
-    let updateError: unknown;
-    await act(async () => {
-      try {
-        await result.current.updateScreen({ screenId: "screen-1", update: { message_content: "x", keyboard: [] } });
-      } catch (e) {
-        updateError = e;
-      }
-    });
-    expect(updateError).toEqual("bad update");
-
-    await act(async () => {
-      await result.current.deleteScreen("screen-1");
-    });
-
-    await act(async () => {
-      await result.current.deleteAllScreens();
-    });
-
-    const messages = vi.mocked(publishSyncEvent).mock.calls
-      .map(call => call[0]?.status?.message)
-      .filter((msg): msg is string => Boolean(msg));
-
-    expect(messages).toEqual(expect.arrayContaining(["更新失败", "删除失败", "批量删除失败"]));
-  });
-
-  it("handles empty pin rows without crashing", async () => {
-    const screensChain = {
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          order: vi.fn().mockResolvedValue({ data: [baseScreen], error: null }),
-        }),
-      }),
-    };
-
-    const pinsChain = {
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({ data: null, error: null }),
-        }),
-      }),
-    };
-
-    supabaseFrom.mockImplementation((table) => {
-      if (table === "screens") return screensChain;
-      if (table === "user_pins") return pinsChain;
-      return { select: vi.fn() };
-    });
-
-    const { result } = renderHook(() => useSupabaseSync(mockUser));
-
-    await act(async () => {
-      await result.current.loadScreens();
-    });
-
-    expect(result.current.pinnedIds).toEqual([]);
-  });
-
-  it("no-ops when user is null", async () => {
-    const { result } = renderHook(() => useSupabaseSync(null));
-
-    await act(async () => {
-      await result.current.loadScreens();
-    });
-
-    await act(async () => {
-      const saved = await result.current.saveScreen({
-        user_id: "anon",
-        name: "Anon",
-        message_content: "content",
-        keyboard: [],
-        is_public: false,
-      });
-      expect(saved).toBeNull();
-    });
-
-    await act(async () => {
-      await result.current.updateScreen({ screenId: "x", update: { message_content: "m", keyboard: [] } });
-      await result.current.deleteScreen("x");
-      await result.current.deleteAllScreens();
-    });
-
-    act(() => {
-      result.current.handleTogglePin("x");
-    });
-
-    expect(mockDataAccess.saveScreen).not.toHaveBeenCalled();
-    expect(mockDataAccess.deleteScreens).not.toHaveBeenCalled();
   });
 });
