@@ -18,6 +18,14 @@ export const useSupabaseSync = (user: User | null) => {
     const [layoutSyncStatus, setLayoutSyncStatus] = useState<SyncStatus>({ state: "idle" });
     const [pendingQueueSize, setPendingQueueSize] = useState(0);
     const loadAbortRef = useRef<AbortController | null>(null);
+    const updateVersionRef = useRef<Map<string, number>>(new Map());
+    type UpdateQueueEntry = { version: number; snapshot: Screen | null; status: "pending" | "failed" };
+    const updateQueueRef = useRef<Map<string, UpdateQueueEntry[]>>(new Map());
+
+    useEffect(() => {
+        updateVersionRef.current.clear();
+        updateQueueRef.current.clear();
+    }, [user?.id]);
 
     const dataAccess = useMemo(() => new SupabaseDataAccess(supabase, { userId: user?.id }), [user]);
     const createRequestId = useCallback(() => makeRequestId(), []);
@@ -28,8 +36,9 @@ export const useSupabaseSync = (user: User | null) => {
             status: SyncStatus & { requestId?: string; message?: string },
             meta?: { action?: string; targetId?: string },
         ) => {
-            /* c8 ignore next 11 */
+            /* c8 ignore next 12 */
             const shouldConsoleLog = import.meta.env.DEV && import.meta.env.MODE !== "test";
+            /* c8 ignore next 3 */
             if (shouldConsoleLog) {
                 console.info("[Sync]", {
                     scope,
@@ -163,14 +172,88 @@ export const useSupabaseSync = (user: User | null) => {
     const updateScreen = useCallback(async (params: UpdateScreenInput) => {
         if (!user) return null;
         const requestId = createRequestId();
+        const existingVersion = updateVersionRef.current.get(params.screenId) ?? 0;
+        const nextVersion = Math.max(Date.now(), existingVersion + 1);
+        updateVersionRef.current.set(params.screenId, nextVersion);
+
+        let snapshot: Screen | null = null;
+        setScreens((prev) => {
+            snapshot = prev.find((screen) => screen.id === params.screenId) ?? null;
+            const queue = updateQueueRef.current.get(params.screenId) ?? [];
+            queue.push({ version: nextVersion, snapshot, status: "pending" });
+            updateQueueRef.current.set(params.screenId, queue);
+            return prev.map((screen) => {
+                if (screen.id !== params.screenId) return screen;
+                return {
+                    ...screen,
+                    ...params.update,
+                    lastUpdateTimestamp: nextVersion,
+                };
+            });
+        });
         try {
             const data = await dataAccess.updateScreen(params);
-            setScreens(prev => prev.map(s => s.id === params.screenId ? (data as unknown as Screen) : s));
+            const queue = updateQueueRef.current.get(params.screenId);
+            if (!queue) {
+                return data;
+            }
+            const index = queue.findIndex((entry) => entry.version === nextVersion);
+            /* c8 ignore next 2 */
+            if (index === -1) {
+                return data;
+            }
+            const maxVersion = Math.max(...queue.map((entry) => entry.version));
+            const remaining = queue.filter((entry) => entry.version !== nextVersion);
+            const hasPending = remaining.some((entry) => entry.status === "pending");
+            if (nextVersion === maxVersion || !hasPending) {
+                updateQueueRef.current.delete(params.screenId);
+                setScreens(prev => prev.map(s => s.id === params.screenId
+                    ? { ...(data as unknown as Screen), lastUpdateTimestamp: nextVersion }
+                    : s));
+            } else {
+                updateQueueRef.current.set(params.screenId, remaining);
+            }
             logSyncEvent("share", { state: "success", requestId, at: Date.now(), message: "更新成功" }, { action: "update_screen", targetId: params.screenId });
             return data;
         } catch (error) {
             console.error("Error updating screen:", error);
             toast.error("Failed to update screen");
+            const queue = updateQueueRef.current.get(params.screenId);
+            if (queue) {
+                const index = queue.findIndex((entry) => entry.version === nextVersion);
+                if (index !== -1) {
+                    const updatedQueue = queue.map((entry) =>
+                        entry.version === nextVersion ? { ...entry, status: "failed" } : entry,
+                    );
+                    const maxVersion = Math.max(...updatedQueue.map((entry) => entry.version));
+                    const hasPending = updatedQueue.some((entry) => entry.status === "pending");
+                    if (!hasPending) {
+                        const earliest = updatedQueue.reduce(
+                            (min, entry) => (entry.version < min.version ? entry : min),
+                            updatedQueue[0],
+                        );
+                        updateQueueRef.current.delete(params.screenId);
+                        const previous = earliest?.snapshot ?? snapshot;
+                        if (previous) {
+                            setScreens((prev) => prev.map((screen) => {
+                                if (screen.id !== params.screenId) return screen;
+                                return previous;
+                            }));
+                        }
+                    } else {
+                        updateQueueRef.current.set(params.screenId, updatedQueue);
+                        if (nextVersion === maxVersion) {
+                            const previous = updatedQueue[index]?.snapshot ?? snapshot;
+                            if (previous) {
+                                setScreens((prev) => prev.map((screen) => {
+                                    if (screen.id !== params.screenId) return screen;
+                                    return previous;
+                                }));
+                            }
+                        }
+                    }
+                }
+            }
             logSyncEvent("share", {
                 state: "error",
                 requestId,

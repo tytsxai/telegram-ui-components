@@ -2,7 +2,7 @@ import { renderHook, act } from "@testing-library/react";
 import type { User } from "@supabase/supabase-js";
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import { publishSyncEvent } from "@/lib/syncTelemetry";
-import { useSupabaseSync } from "../chat/useSupabaseSync";
+import { useSupabaseSync } from "../useSupabaseSync";
 import type { Screen } from "@/types/telegram";
 import type { PendingItem, PendingFailure } from "@/lib/pendingQueue";
 
@@ -18,6 +18,7 @@ const mockDataAccess = vi.hoisted(() => ({
   saveScreen: vi.fn(),
   updateScreen: vi.fn(),
   deleteScreens: vi.fn(),
+  deleteLayouts: vi.fn(),
   upsertPins: vi.fn(),
   publishShareToken: vi.fn(),
   rotateShareToken: vi.fn(),
@@ -30,6 +31,16 @@ const baseScreen: Screen = {
   name: "Main",
   message_content: "hello",
   keyboard: [],
+};
+
+const createDeferred = <T,>() => {
+  let resolve: (value: T) => void;
+  let reject: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve: resolve!, reject: reject! };
 };
 
 vi.mock("sonner", () => ({ toast }));
@@ -131,6 +142,51 @@ describe("useSupabaseSync", () => {
     expect(result.current.shareSyncStatus.state).toBe("success");
   });
 
+  it("logs retry telemetry when load screens retries", async () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    const screensChain = {
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          order: vi.fn()
+            .mockResolvedValueOnce({ data: null, error: { status: 500 } })
+            .mockResolvedValueOnce({ data: [baseScreen], error: null }),
+        }),
+      }),
+    };
+
+    const pinsChain = {
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { pinned_ids: [] }, error: null }),
+        }),
+      }),
+    };
+
+    supabaseFrom.mockImplementation((table) => {
+      if (table === "screens") return screensChain;
+      if (table === "user_pins") return pinsChain;
+      return { select: vi.fn() };
+    });
+
+    const { result } = renderHook(() => useSupabaseSync(mockUser));
+
+    await act(async () => {
+      const pending = result.current.loadScreens();
+      await vi.runAllTimersAsync();
+      await pending;
+    });
+
+    const retryEvents = vi.mocked(publishSyncEvent).mock.calls
+      .map(call => call[0])
+      .filter((evt) => evt?.status?.message?.includes("load retry"));
+
+    expect(retryEvents.length).toBeGreaterThan(0);
+
+    randomSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
   it("logs pin fetch errors but still resolves load", async () => {
     supabaseFrom.mockImplementation((table) => {
       if (table === "screens") {
@@ -226,6 +282,312 @@ describe("useSupabaseSync", () => {
       update: expect.objectContaining({ message_content: "updated" }),
     });
     expect(result.current.screens[0].message_content).toBe("updated");
+  });
+
+  it("updates only the targeted screen on success", async () => {
+    const updated = { ...baseScreen, id: "screen-1", message_content: "updated" };
+    mockDataAccess.updateScreen.mockResolvedValue(updated);
+
+    const { result } = renderHook(() => useSupabaseSync(mockUser));
+
+    act(() => {
+      result.current.setScreens([baseScreen, { ...baseScreen, id: "screen-2", message_content: "keep" }]);
+    });
+
+    await act(async () => {
+      await result.current.updateScreen({
+        screenId: "screen-1",
+        update: { message_content: "updated", keyboard: [] },
+      });
+    });
+
+    const first = result.current.screens.find((screen) => screen.id === "screen-1");
+    const second = result.current.screens.find((screen) => screen.id === "screen-2");
+    expect(first?.message_content).toBe("updated");
+    expect(second?.message_content).toBe("keep");
+  });
+
+  it("ignores stale update responses when a newer update completes first", async () => {
+    const first = createDeferred<Screen>();
+    const second = createDeferred<Screen>();
+    mockDataAccess.updateScreen
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+
+    const { result } = renderHook(() => useSupabaseSync(mockUser));
+
+    act(() => {
+      result.current.setScreens([baseScreen]);
+    });
+
+    const firstCall = act(async () => {
+      await result.current.updateScreen({
+        screenId: "screen-1",
+        update: { message_content: "first", keyboard: [] },
+      });
+    });
+
+    const secondCall = act(async () => {
+      await result.current.updateScreen({
+        screenId: "screen-1",
+        update: { message_content: "second", keyboard: [] },
+      });
+    });
+
+    second.resolve({ ...baseScreen, message_content: "second" });
+    await secondCall;
+
+    first.resolve({ ...baseScreen, message_content: "first" });
+    await firstCall;
+
+    expect(result.current.screens[0].message_content).toBe("second");
+  });
+
+  it("keeps newer optimistic state when an older update succeeds first", async () => {
+    const first = createDeferred<Screen>();
+    const second = createDeferred<Screen>();
+    mockDataAccess.updateScreen
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+
+    const { result } = renderHook(() => useSupabaseSync(mockUser));
+
+    act(() => {
+      result.current.setScreens([baseScreen]);
+    });
+
+    let firstPromise: Promise<Screen | null> | undefined;
+    let secondPromise: Promise<Screen | null> | undefined;
+
+    act(() => {
+      firstPromise = result.current.updateScreen({
+        screenId: "screen-1",
+        update: { message_content: "first", keyboard: [] },
+      });
+    });
+
+    act(() => {
+      secondPromise = result.current.updateScreen({
+        screenId: "screen-1",
+        update: { message_content: "second", keyboard: [] },
+      });
+    });
+
+    first.resolve({ ...baseScreen, message_content: "first" });
+    await act(async () => {
+      await firstPromise;
+    });
+
+    expect(result.current.screens[0].message_content).toBe("second");
+
+    second.resolve({ ...baseScreen, message_content: "second" });
+    await act(async () => {
+      await secondPromise;
+    });
+
+    expect(result.current.screens[0].message_content).toBe("second");
+  });
+
+  it("rolls back optimistic updates when the latest update fails", async () => {
+    mockDataAccess.updateScreen.mockRejectedValue(new Error("update failed"));
+
+    const { result } = renderHook(() => useSupabaseSync(mockUser));
+
+    act(() => {
+      result.current.setScreens([baseScreen, { ...baseScreen, id: "screen-2", message_content: "other" }]);
+    });
+
+    await expect(
+      act(async () => {
+        await result.current.updateScreen({
+          screenId: "screen-1",
+          update: { message_content: "optimistic", keyboard: [] },
+        });
+      }),
+    ).rejects.toThrow("update failed");
+
+    const first = result.current.screens.find((screen) => screen.id === "screen-1");
+    const second = result.current.screens.find((screen) => screen.id === "screen-2");
+    expect(first?.message_content).toBe("hello");
+    expect(second?.message_content).toBe("other");
+  });
+
+  it("does not rollback when an older update fails after a newer update starts", async () => {
+    const first = createDeferred<Screen>();
+    const second = createDeferred<Screen>();
+    mockDataAccess.updateScreen
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+
+    const { result } = renderHook(() => useSupabaseSync(mockUser));
+
+    act(() => {
+      result.current.setScreens([baseScreen]);
+    });
+
+    let firstPromise: Promise<Screen | null> | undefined;
+    let secondPromise: Promise<Screen | null> | undefined;
+
+    act(() => {
+      firstPromise = result.current.updateScreen({
+        screenId: "screen-1",
+        update: { message_content: "first", keyboard: [] },
+      });
+    });
+
+    act(() => {
+      secondPromise = result.current.updateScreen({
+        screenId: "screen-1",
+        update: { message_content: "second", keyboard: [] },
+      });
+    });
+
+    first.reject(new Error("first failed"));
+    await act(async () => {
+      await expect(firstPromise).rejects.toThrow("first failed");
+    });
+
+    expect(result.current.screens[0].message_content).toBe("second");
+
+    second.resolve({ ...baseScreen, message_content: "second" });
+    await act(async () => {
+      await secondPromise;
+    });
+
+    expect(result.current.screens[0].message_content).toBe("second");
+  });
+
+  it("does not rollback when an older update fails after a newer update succeeds", async () => {
+    const first = createDeferred<Screen>();
+    const second = createDeferred<Screen>();
+    mockDataAccess.updateScreen
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+
+    const { result } = renderHook(() => useSupabaseSync(mockUser));
+
+    act(() => {
+      result.current.setScreens([baseScreen]);
+    });
+
+    let firstPromise: Promise<Screen | null> | undefined;
+    let secondPromise: Promise<Screen | null> | undefined;
+
+    act(() => {
+      firstPromise = result.current.updateScreen({
+        screenId: "screen-1",
+        update: { message_content: "first", keyboard: [] },
+      });
+    });
+
+    act(() => {
+      secondPromise = result.current.updateScreen({
+        screenId: "screen-1",
+        update: { message_content: "second", keyboard: [] },
+      });
+    });
+
+    second.resolve({ ...baseScreen, message_content: "second" });
+    await act(async () => {
+      await secondPromise;
+    });
+
+    first.reject(new Error("first failed"));
+    await act(async () => {
+      await expect(firstPromise).rejects.toThrow("first failed");
+    });
+
+    expect(result.current.screens[0].message_content).toBe("second");
+  });
+
+  it("rolls back to the original snapshot when multiple updates fail", async () => {
+    const first = createDeferred<Screen>();
+    const second = createDeferred<Screen>();
+    mockDataAccess.updateScreen
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+
+    const { result } = renderHook(() => useSupabaseSync(mockUser));
+
+    act(() => {
+      result.current.setScreens([baseScreen]);
+    });
+
+    let firstPromise: Promise<Screen | null> | undefined;
+    let secondPromise: Promise<Screen | null> | undefined;
+
+    act(() => {
+      firstPromise = result.current.updateScreen({
+        screenId: "screen-1",
+        update: { message_content: "first", keyboard: [] },
+      });
+    });
+
+    act(() => {
+      secondPromise = result.current.updateScreen({
+        screenId: "screen-1",
+        update: { message_content: "second", keyboard: [] },
+      });
+    });
+
+    second.reject(new Error("second failed"));
+    await act(async () => {
+      await expect(secondPromise).rejects.toThrow("second failed");
+    });
+
+    expect(result.current.screens[0].message_content).toBe("first");
+
+    first.reject(new Error("first failed"));
+    await act(async () => {
+      await expect(firstPromise).rejects.toThrow("first failed");
+    });
+
+    expect(result.current.screens[0].message_content).toBe("hello");
+  });
+
+  it("rolls back to the original snapshot when an older update fails first", async () => {
+    const first = createDeferred<Screen>();
+    const second = createDeferred<Screen>();
+    mockDataAccess.updateScreen
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+
+    const { result } = renderHook(() => useSupabaseSync(mockUser));
+
+    act(() => {
+      result.current.setScreens([baseScreen]);
+    });
+
+    let firstPromise: Promise<Screen | null> | undefined;
+    let secondPromise: Promise<Screen | null> | undefined;
+
+    act(() => {
+      firstPromise = result.current.updateScreen({
+        screenId: "screen-1",
+        update: { message_content: "first", keyboard: [] },
+      });
+    });
+
+    act(() => {
+      secondPromise = result.current.updateScreen({
+        screenId: "screen-1",
+        update: { message_content: "second", keyboard: [] },
+      });
+    });
+
+    first.reject(new Error("first failed"));
+    await act(async () => {
+      await expect(firstPromise).rejects.toThrow("first failed");
+    });
+
+    expect(result.current.screens[0].message_content).toBe("second");
+
+    second.reject(new Error("second failed"));
+    await act(async () => {
+      await expect(secondPromise).rejects.toThrow("second failed");
+    });
+
+    expect(result.current.screens[0].message_content).toBe("hello");
   });
 
   it("surfaces errors when updating screens fails", async () => {
@@ -329,6 +691,53 @@ describe("useSupabaseSync", () => {
     expect(mockDataAccess.deleteScreens).toHaveBeenCalledWith({ ids: ["screen-1"] });
     expect(result.current.screens).toHaveLength(0);
     expect(toast.success).toHaveBeenCalledWith("All screens deleted");
+  });
+
+  it("cleans up layouts when deleteLayouts is available", async () => {
+    mockDataAccess.deleteLayouts.mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useSupabaseSync(mockUser));
+    act(() => {
+      result.current.setScreens([baseScreen]);
+    });
+
+    await act(async () => {
+      await result.current.deleteAllScreens();
+    });
+
+    expect(mockDataAccess.deleteLayouts).toHaveBeenCalledWith({ ids: ["screen-1"] });
+  });
+
+  it("skips layout cleanup when deleteLayouts is not a function", async () => {
+    const original = mockDataAccess.deleteLayouts;
+    (mockDataAccess as { deleteLayouts?: unknown }).deleteLayouts = undefined;
+
+    const { result } = renderHook(() => useSupabaseSync(mockUser));
+    act(() => {
+      result.current.setScreens([baseScreen]);
+    });
+
+    await act(async () => {
+      await result.current.deleteAllScreens();
+    });
+
+    (mockDataAccess as { deleteLayouts?: unknown }).deleteLayouts = original;
+  });
+
+  it("skips delete when there are no screens to delete", async () => {
+    const { result } = renderHook(() => useSupabaseSync(mockUser));
+
+    act(() => {
+      result.current.setScreens([]);
+    });
+
+    await act(async () => {
+      await result.current.deleteAllScreens();
+    });
+
+    expect(mockDataAccess.deleteScreens).not.toHaveBeenCalled();
+    expect(mockDataAccess.deleteLayouts).not.toHaveBeenCalled();
+    expect(mockDataAccess.upsertPins).toHaveBeenCalledWith({ user_id: mockUser.id, pinned_ids: [] });
   });
 
   it("reverts pinned ids when upsert fails", async () => {
