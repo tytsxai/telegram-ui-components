@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { User } from '@supabase/supabase-js';
 import type { PendingItem } from '@/lib/pendingQueue';
 import { withRetry } from '@/lib/supabaseRetry';
+import { hasSupabaseEnv } from '@/lib/runtimeConfig';
 
 export const useSupabaseSync = (user: User | null) => {
     const [screens, setScreens] = useState<Screen[]>([]);
@@ -21,6 +22,7 @@ export const useSupabaseSync = (user: User | null) => {
     const updateVersionRef = useRef<Map<string, number>>(new Map());
     type UpdateQueueEntry = { version: number; snapshot: Screen | null; status: "pending" | "failed" };
     const updateQueueRef = useRef<Map<string, UpdateQueueEntry[]>>(new Map());
+    const supabaseEnabled = useMemo(() => hasSupabaseEnv(), []);
 
     useEffect(() => {
         updateVersionRef.current.clear();
@@ -59,6 +61,11 @@ export const useSupabaseSync = (user: User | null) => {
 
     const loadScreens = useCallback(async () => {
         if (!user) return;
+        if (!supabaseEnabled) {
+            setShareSyncStatus({ state: "idle" });
+            setIsLoading(false);
+            return;
+        }
         loadAbortRef.current?.abort();
         const controller = new AbortController();
         loadAbortRef.current = controller;
@@ -136,10 +143,17 @@ export const useSupabaseSync = (user: User | null) => {
                 setIsLoading(false);
             }
         }
-    }, [user, createRequestId, logSyncEvent]);
+    }, [user, createRequestId, logSyncEvent, supabaseEnabled]);
 
     const saveScreen = useCallback(async (payload: SaveScreenInput) => {
         if (!user) return null;
+        if (!supabaseEnabled) {
+            const errorStatus: SyncStatus = { state: "error", message: "云端未配置" };
+            setShareSyncStatus(errorStatus);
+            logSyncEvent("share", errorStatus, { action: "save_screen" });
+            toast.error("云端未配置，无法保存");
+            return null;
+        }
         setShareLoading(true);
         const requestId = createRequestId();
         const pendingStatus = { state: "pending", requestId, message: "保存中" };
@@ -167,10 +181,17 @@ export const useSupabaseSync = (user: User | null) => {
         } finally {
             setShareLoading(false);
         }
-    }, [user, dataAccess, createRequestId, logSyncEvent]);
+    }, [user, dataAccess, createRequestId, logSyncEvent, supabaseEnabled]);
 
     const updateScreen = useCallback(async (params: UpdateScreenInput) => {
         if (!user) return null;
+        if (!supabaseEnabled) {
+            const errorStatus: SyncStatus = { state: "error", message: "云端未配置" };
+            setShareSyncStatus(errorStatus);
+            logSyncEvent("share", errorStatus, { action: "update_screen", targetId: params.screenId });
+            toast.error("云端未配置，无法更新");
+            return null;
+        }
         const requestId = createRequestId();
         const existingVersion = updateVersionRef.current.get(params.screenId) ?? 0;
         const nextVersion = Math.max(Date.now(), existingVersion + 1);
@@ -261,10 +282,17 @@ export const useSupabaseSync = (user: User | null) => {
             }, { action: "update_screen", targetId: params.screenId });
             throw error;
         }
-    }, [user, dataAccess, createRequestId, logSyncEvent]);
+    }, [user, dataAccess, createRequestId, logSyncEvent, supabaseEnabled]);
 
     const deleteScreen = useCallback(async (id: string) => {
         if (!user) return;
+        if (!supabaseEnabled) {
+            const errorStatus: SyncStatus = { state: "error", message: "云端未配置" };
+            setShareSyncStatus(errorStatus);
+            logSyncEvent("share", errorStatus, { action: "delete_screen", targetId: id });
+            toast.error("云端未配置，无法删除");
+            return;
+        }
         const requestId = createRequestId();
         try {
             await dataAccess.deleteScreens({ ids: [id] });
@@ -280,10 +308,17 @@ export const useSupabaseSync = (user: User | null) => {
                 message: error instanceof Error ? error.message : "删除失败",
             }, { action: "delete_screen", targetId: id });
         }
-    }, [user, dataAccess, createRequestId, logSyncEvent]);
+    }, [user, dataAccess, createRequestId, logSyncEvent, supabaseEnabled]);
 
     const deleteAllScreens = useCallback(async () => {
         if (!user) return;
+        if (!supabaseEnabled) {
+            const errorStatus: SyncStatus = { state: "error", message: "云端未配置" };
+            setShareSyncStatus(errorStatus);
+            logSyncEvent("share", errorStatus, { action: "delete_all_screens" });
+            toast.error("云端未配置，无法删除");
+            return;
+        }
         const requestId = createRequestId();
         try {
             const ids = screens.map(s => s.id);
@@ -308,10 +343,14 @@ export const useSupabaseSync = (user: User | null) => {
                 message: error instanceof Error ? error.message : "批量删除失败",
             }, { action: "delete_all_screens" });
         }
-    }, [user, screens, dataAccess, createRequestId, logSyncEvent]);
+    }, [user, screens, dataAccess, createRequestId, logSyncEvent, supabaseEnabled]);
 
     const handleTogglePin = useCallback(async (screenId: string) => {
         if (!user) return;
+        if (!supabaseEnabled) {
+            toast.error("云端未配置，无法更新置顶");
+            return;
+        }
         const previous = pinnedIds;
         const nextPinned = pinnedIds.includes(screenId)
             ? pinnedIds.filter(id => id !== screenId)
@@ -325,7 +364,7 @@ export const useSupabaseSync = (user: User | null) => {
             toast.error("Failed to update pins");
             setPinnedIds(previous);
         }
-    }, [dataAccess, pinnedIds, user]);
+    }, [dataAccess, pinnedIds, user, supabaseEnabled]);
 
     const onQueueItemReplay = useCallback(
         (item: PendingItem, error: unknown, meta: { attempt: number; delayMs?: number }) => {

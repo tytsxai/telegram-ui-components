@@ -24,6 +24,7 @@ import { findAllCircularReferences, findCircularEdges, generateRelationshipGraph
 import dagre from '@dagrejs/dagre';
 import { SupabaseDataAccess } from '@/lib/dataAccess';
 import { supabase } from '@/integrations/supabase/client';
+import { hasSupabaseEnv } from '@/lib/runtimeConfig';
 
 import { Screen } from '@/types/telegram';
 import { SyncStatus, makeRequestId } from '@/types/sync';
@@ -146,6 +147,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
   const [layoutSaving, setLayoutSaving] = useState(false);
   const lastSavedSignatureRef = useRef<string>('');
   const autoSaveTimerRef = useRef<number | null>(null);
+  const supabaseEnabled = useMemo(() => hasSupabaseEnv(), []);
 
   useEffect(() => {
     return () => {
@@ -187,7 +189,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
 
   useEffect(() => {
     const fetchPinned = async () => {
-      if (!open || !userId || (pinnedIds && pinnedIds.length > 0)) return;
+      if (!open || !userId || !supabaseEnabled || (pinnedIds && pinnedIds.length > 0)) return;
       try {
         const cloudPins = await dataAccess.fetchPins();
         if (Array.isArray(cloudPins) && cloudPins.length > 0) {
@@ -198,7 +200,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
       }
     };
     void fetchPinned();
-  }, [open, userId, pinnedIds, dataAccess]);
+  }, [open, userId, pinnedIds, dataAccess, supabaseEnabled]);
 
   // 预计算循环集合
   const cycleNodeIds = useMemo(() => {
@@ -600,7 +602,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
     setLayoutSavedAt(Date.now());
 
     const requestId = makeRequestId();
-    if (userId) {
+    if (userId && supabaseEnabled) {
       try {
         const ids = positions.map((p) => p.id);
         if (ids.length === 0) {
@@ -626,7 +628,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
     if (!options?.silent) {
       setLayoutSaving(false);
     }
-  }, [POS_KEY, userId, dataAccess]);
+  }, [POS_KEY, userId, dataAccess, supabaseEnabled]);
 
   // 合并自动布局与用户布局：如已存在用户/保存的布局，保留当前坐标，仅为新增节点填充位置
   useEffect(() => {
@@ -780,7 +782,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
   }, [POS_KEY]);
 
   const loadLayoutCloud = useCallback(async () => {
-    if (!userId) return false;
+    if (!userId || !supabaseEnabled) return false;
     try {
       const ids = screens.map(s => s.id);
       if (ids.length === 0) return false;
@@ -800,7 +802,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
       layoutSyncRef.current?.({ state: "success", at: Date.now(), message: "已加载云端布局" });
       return true;
     } catch (e) { layoutSyncRef.current?.({ state: "error", message: "加载云端布局失败" }); return false; }
-  }, [userId, screens, dataAccess]);
+  }, [userId, screens, dataAccess, supabaseEnabled]);
 
   const clearLayout = useCallback(async () => {
     try { localStorage.removeItem(POS_KEY); } catch (e) { void e; }
@@ -808,7 +810,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
     lastSavedSignatureRef.current = '';
     setLayoutSavedAt(null);
     setUseSavedPositions(false);
-    if (userId) {
+    if (userId && supabaseEnabled) {
       try {
         await dataAccess.deleteLayouts({});
         layoutSyncRef.current?.({ state: "success", at: Date.now(), message: "已清空云端布局" });
@@ -816,7 +818,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
     }
     setNodes(initialNodes);
     setTimeout(() => rfInstance?.fitView({ padding: 0.2, maxZoom: 1 }), 50);
-  }, [POS_KEY, initialNodes, rfInstance, setNodes, userId, dataAccess]);
+  }, [POS_KEY, initialNodes, rfInstance, setNodes, userId, dataAccess, supabaseEnabled]);
 
   // 自动保存：用户调整或智能整理后延迟写入，避免重复点击
   useEffect(() => {

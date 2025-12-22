@@ -164,3 +164,6 @@ export const getSupabaseConfig = () => {
     publishableKey: report.supabasePublishableKey,
   };
 };
+
+export const hasSupabaseEnv = (env: RuntimeEnv = import.meta.env) =>
+  Boolean(env.VITE_SUPABASE_URL && env.VITE_SUPABASE_PUBLISHABLE_KEY);

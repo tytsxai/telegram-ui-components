@@ -48,6 +48,7 @@ vi.mock("@/lib/syncTelemetry", () => ({ publishSyncEvent: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { from: supabaseFrom },
 }));
+vi.mock("@/lib/runtimeConfig", () => ({ hasSupabaseEnv: () => true }));
 vi.mock("@/lib/dataAccess", () => {
   const SupabaseDataAccess = vi.fn(function MockSupabaseDataAccess() {
     return mockDataAccess;
