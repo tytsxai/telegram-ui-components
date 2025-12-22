@@ -10,13 +10,29 @@ const normalizeGlobalBuffer = () => {
   const buffer = globalThis.Buffer as unknown;
   if (typeof buffer === "undefined") return;
   if (typeof buffer === "function") return;
-  if (typeof buffer === "object" && buffer && typeof (buffer as { from?: unknown }).from === "function") {
-    try {
-      delete (globalThis as { Buffer?: unknown }).Buffer;
-    } catch {
-      (globalThis as { Buffer?: unknown }).Buffer = undefined;
-    }
+  try {
+    delete (globalThis as { Buffer?: unknown }).Buffer;
+  } catch {
+    (globalThis as { Buffer?: unknown }).Buffer = undefined;
   }
+};
+
+const instrumentDefineProperty = () => {
+  if (!import.meta.env.DEV) return;
+  const original = Object.defineProperty;
+  Object.defineProperty = ((target, propertyKey, descriptor) => {
+    const isValidTarget = target !== null && (typeof target === "object" || typeof target === "function");
+    if (!isValidTarget) {
+      console.error("[defineProperty] invalid target", {
+        target,
+        targetType: typeof target,
+        propertyKey,
+        descriptor,
+        stack: new Error().stack,
+      });
+    }
+    return original(target as object, propertyKey as PropertyKey, descriptor as PropertyDescriptor);
+  }) as typeof Object.defineProperty;
 };
 
 if (!getSyncTelemetryPublisher()) {
@@ -37,6 +53,7 @@ if (!getSyncTelemetryPublisher()) {
 }
 
 normalizeGlobalBuffer();
+instrumentDefineProperty();
 initErrorReporting();
 
 const runtimeReport = getRuntimeConfigReport();
