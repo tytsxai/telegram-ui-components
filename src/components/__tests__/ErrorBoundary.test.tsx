@@ -49,7 +49,10 @@ describe("ErrorBoundary", () => {
   });
 
   it("getDerivedStateFromError sets hasError state", () => {
-    const state = (ErrorBoundary as any).getDerivedStateFromError(new Error("X"));
+    type ErrorBoundaryClass = typeof ErrorBoundary & {
+      getDerivedStateFromError: (error: Error) => { hasError: boolean; error: Error };
+    };
+    const state = (ErrorBoundary as ErrorBoundaryClass).getDerivedStateFromError(new Error("X"));
     expect(state.hasError).toBe(true);
     expect(state.error).toBeInstanceOf(Error);
   });

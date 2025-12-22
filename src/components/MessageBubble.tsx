@@ -1,6 +1,12 @@
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef, useCallback, useMemo } from "react";
 import { debounce } from "@/lib/debounce";
 
+const MAX_PREVIEW_LENGTH = 500;
+
+const getCodePointLength = (text: string) => Array.from(text).length;
+const sliceByCodePoints = (text: string, maxLength: number) =>
+  Array.from(text).slice(0, maxLength).join("");
+
 interface MessageBubbleProps {
   content: string;
   onContentChange?: (content: string) => void;
@@ -15,7 +21,20 @@ export type MessageBubbleHandle = {
 const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ content, onContentChange, readOnly = false }, ref) => {
   const editableRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const lastContentRef = useRef<string>("");
+
+  const truncateText = useCallback((text: string, maxLength = MAX_PREVIEW_LENGTH) => {
+    if (!text) return "";
+    if (getCodePointLength(text) <= maxLength) return text;
+    return `${sliceByCodePoints(text, maxLength)}...`;
+  }, []);
+
+  const shouldTruncate = readOnly && getCodePointLength(content) > MAX_PREVIEW_LENGTH;
+  const displayContent = useMemo(() => {
+    if (!shouldTruncate) return content;
+    return isExpanded ? content : truncateText(content);
+  }, [content, isExpanded, shouldTruncate, truncateText]);
 
   const escapeHtml = useCallback(
     (str: string) =>
@@ -51,6 +70,10 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
   }, [escapeHtml]);
 
   const htmlToMarkup = useCallback((html: string): string => {
+    if (!html.includes("<") && !html.includes("&")) return html;
+    const brOnly = html.replace(/<br\s*\/?>/gi, "\n");
+    if (!brOnly.includes("<") && !brOnly.includes("&")) return brOnly;
+
     const container = document.createElement('div');
     container.innerHTML = html;
 
@@ -146,17 +169,21 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
 
 
   useEffect(() => {
+    setIsExpanded(false);
+  }, [content]);
+
+  useEffect(() => {
     if (editableRef.current) {
-      const formatted = formatMessage(content);
+      const formatted = formatMessage(displayContent);
       if (editableRef.current.innerHTML !== formatted) {
         // Only update if content actually changed from external source
-        if (lastContentRef.current !== content) {
+        if (readOnly || lastContentRef.current !== content) {
           editableRef.current.innerHTML = formatted;
           lastContentRef.current = content;
         }
       }
     }
-  }, [content, formatMessage]);
+  }, [content, displayContent, formatMessage, readOnly]);
 
   const saveCursorPosition = () => {
     const selection = window.getSelection();
@@ -299,6 +326,17 @@ const MessageBubble = forwardRef<MessageBubbleHandle, MessageBubbleProps>(({ con
           className="outline-none min-h-[20px] whitespace-pre-wrap break-words text-[15px] leading-[1.35] font-telegram"
           suppressContentEditableWarning
         />
+        {shouldTruncate ? (
+          <div className="mt-1 flex justify-start">
+            <button
+              type="button"
+              onClick={() => setIsExpanded((prev) => !prev)}
+              className="text-[11px] font-telegram text-white/80 hover:text-white underline underline-offset-2"
+            >
+              {isExpanded ? "收起" : "展开"}
+            </button>
+          </div>
+        ) : null}
         <div className="flex items-center justify-end gap-1 mt-1">
           <span className="text-[11px] text-white/70 font-telegram">12:34</span>
           <svg className="w-4 h-4 text-white/70" viewBox="0 0 16 16" fill="none">

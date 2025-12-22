@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -41,7 +41,7 @@ interface SidebarLeftProps {
     onOpenFlowDiagram: () => void;
 }
 
-export const SidebarLeft: React.FC<SidebarLeftProps> = ({
+const SidebarLeftComponent: React.FC<SidebarLeftProps> = ({
     user,
     screens,
     currentScreenId,
@@ -71,10 +71,42 @@ export const SidebarLeft: React.FC<SidebarLeftProps> = ({
     onExportFlow,
     onOpenFlowDiagram,
 }) => {
-    const isPinned = (id?: string) => !!id && pinnedIds.includes(id);
-    const hasEntry = !!entryScreenId && screens.some((s) => s.id === entryScreenId);
-    const entryScreenName = screens.find((s) => s.id === entryScreenId)?.name;
+    const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds]);
+    const entryScreen = useMemo(
+        () => screens.find((s) => s.id === entryScreenId),
+        [screens, entryScreenId],
+    );
+    const hasEntry = !!entryScreen;
+    const entryScreenName = entryScreen?.name;
     const entryValue = entryScreenId ?? "none";
+
+    const isPinned = useCallback((id?: string) => !!id && pinnedSet.has(id), [pinnedSet]);
+    const handleSave = useCallback(() => {
+        if (currentScreenId) {
+            onUpdateScreen();
+            return;
+        }
+        onSaveScreen();
+    }, [currentScreenId, onSaveScreen, onUpdateScreen]);
+    const handleTogglePin = useCallback(() => {
+        if (currentScreenId) {
+            onTogglePin(currentScreenId);
+        }
+    }, [currentScreenId, onTogglePin]);
+    const handleDeleteScreen = useCallback(() => {
+        if (currentScreenId) {
+            onDeleteScreen(currentScreenId);
+        }
+    }, [currentScreenId, onDeleteScreen]);
+    const handleSetEntryFromCurrent = useCallback(() => {
+        onSetEntry(currentScreenId || null);
+    }, [currentScreenId, onSetEntry]);
+    const handleEntryChange = useCallback(
+        (val: string) => {
+            onSetEntry(val === "none" ? null : val);
+        },
+        [onSetEntry],
+    );
 
     return (
         <div className="flex flex-col h-full p-4 space-y-4">
@@ -103,7 +135,7 @@ export const SidebarLeft: React.FC<SidebarLeftProps> = ({
             {/* Main Actions */}
             <div className="space-y-2">
                 <Button
-                    onClick={currentScreenId ? onUpdateScreen : onSaveScreen}
+                    onClick={handleSave}
                     className="w-full justify-start"
                     disabled={isLoading}
                 >
@@ -140,7 +172,7 @@ export const SidebarLeft: React.FC<SidebarLeftProps> = ({
                     <div className="grid grid-cols-2 gap-2">
                         <Button
                             variant={isPinned(currentScreenId) ? "default" : "outline"}
-                            onClick={() => onTogglePin(currentScreenId)}
+                            onClick={handleTogglePin}
                             size="sm"
                             className="justify-start"
                         >
@@ -149,7 +181,7 @@ export const SidebarLeft: React.FC<SidebarLeftProps> = ({
                         </Button>
                         <Button
                             variant="outline"
-                            onClick={() => onDeleteScreen(currentScreenId)}
+                            onClick={handleDeleteScreen}
                             size="sm"
                             className="justify-start text-destructive hover:text-destructive"
                         >
@@ -160,7 +192,7 @@ export const SidebarLeft: React.FC<SidebarLeftProps> = ({
                     <div className="grid grid-cols-2 gap-2">
                         <Button
                             variant={entryScreenId === currentScreenId ? "default" : "outline"}
-                            onClick={() => onSetEntry(currentScreenId || null)}
+                            onClick={handleSetEntryFromCurrent}
                             size="sm"
                             className="justify-start"
                         >
@@ -168,7 +200,7 @@ export const SidebarLeft: React.FC<SidebarLeftProps> = ({
                         </Button>
                         <Button
                             variant="outline"
-                            disabled={!entryScreenId || !screens.some(s => s.id === entryScreenId)}
+                            disabled={!hasEntry}
                             onClick={onJumpToEntry}
                             size="sm"
                             className="justify-start"
@@ -191,7 +223,7 @@ export const SidebarLeft: React.FC<SidebarLeftProps> = ({
                         </span>
                     </div>
                     <div className="space-y-1">
-                        <Select value={entryValue} onValueChange={(val) => onSetEntry(val === "none" ? null : val)}>
+                        <Select value={entryValue} onValueChange={handleEntryChange}>
                             <SelectTrigger aria-label="入口模版选择" data-testid="entry-select-trigger">
                                 <SelectValue placeholder="选择入口模版..." />
                             </SelectTrigger>
@@ -284,3 +316,5 @@ export const SidebarLeft: React.FC<SidebarLeftProps> = ({
         </div>
     );
 };
+
+export const SidebarLeft = React.memo(SidebarLeftComponent);

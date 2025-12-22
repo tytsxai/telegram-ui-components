@@ -34,12 +34,55 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
   VariantProps<typeof buttonVariants> {
   asChild?: boolean;
+  "aria-label"?: string;
+  "aria-describedby"?: string;
 }
 
+const extractTextLabel = (node: React.ReactNode): string | undefined => {
+  if (typeof node === "string" || typeof node === "number") {
+    return String(node);
+  }
+
+  if (Array.isArray(node)) {
+    const parts = node.map(extractTextLabel).filter(Boolean) as string[];
+    return parts.length ? parts.join(" ") : undefined;
+  }
+
+  if (React.isValidElement(node)) {
+    return extractTextLabel(node.props.children);
+  }
+
+  return undefined;
+};
+
+const normalizeLabel = (value?: string): string | undefined => {
+  if (value == null) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : undefined;
+};
+
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, children, ...props }, ref) => {
+    const { "aria-label": ariaLabelProp, "aria-describedby": ariaDescribedBy, ...rest } = props;
     const Comp = asChild ? Slot : "button";
-    return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+    const derivedLabel =
+      normalizeLabel(ariaLabelProp) ??
+      (props["aria-labelledby"] ? undefined : normalizeLabel(extractTextLabel(children)));
+    const isDisabled = Boolean(rest.disabled);
+
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        aria-label={derivedLabel}
+        aria-describedby={ariaDescribedBy}
+        aria-disabled={asChild && isDisabled ? true : undefined}
+        data-disabled={asChild && isDisabled ? "true" : undefined}
+        {...rest}
+      >
+        {children}
+      </Comp>
+    );
   },
 );
 Button.displayName = "Button";

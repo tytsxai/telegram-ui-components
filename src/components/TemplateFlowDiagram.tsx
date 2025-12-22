@@ -45,6 +45,14 @@ interface TemplateFlowDiagramProps {
 
 type NodePositionPayload = { id: string; x: number; y: number };
 
+export const MAX_VISIBLE_NODES = 300;
+const LAZY_BATCH_SIZE = 60;
+const LAZY_BATCH_DELAY_MS = 80;
+const INITIAL_BATCH_SIZE = 80;
+const VIEWPORT_PADDING = 160;
+const DEFAULT_NODE_WIDTH = 220;
+const DEFAULT_NODE_HEIGHT = 120;
+
 const serializePositions = (positions: NodePositionPayload[]) =>
   positions.map((p) => `${p.id}:${Math.round(p.x)}:${Math.round(p.y)}`).join("|");
 
@@ -58,6 +66,37 @@ const nodesToPositions = (nodes: Node[]): NodePositionPayload[] =>
   nodes
     .filter((n) => typeof n.position?.x === "number" && typeof n.position?.y === "number")
     .map((n) => ({ id: n.id, x: n.position!.x, y: n.position!.y }));
+
+const getNodeDimension = (value: unknown, fallback: number) => {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+};
+
+const isNodeInViewport = (
+  node: Node,
+  viewport: { x: number; y: number; zoom: number },
+  containerRect?: DOMRect,
+) => {
+  if (!containerRect || containerRect.width === 0 || containerRect.height === 0) {
+    return true;
+  }
+  const zoom = Number.isFinite(viewport.zoom) && viewport.zoom > 0 ? viewport.zoom : 1;
+  const viewLeft = -viewport.x / zoom - VIEWPORT_PADDING;
+  const viewTop = -viewport.y / zoom - VIEWPORT_PADDING;
+  const viewRight = viewLeft + containerRect.width / zoom + VIEWPORT_PADDING * 2;
+  const viewBottom = viewTop + containerRect.height / zoom + VIEWPORT_PADDING * 2;
+  const width = getNodeDimension(node.width ?? node.style?.width, DEFAULT_NODE_WIDTH);
+  const height = getNodeDimension(node.height ?? node.style?.height, DEFAULT_NODE_HEIGHT);
+  const x = node.position?.x ?? 0;
+  const y = node.position?.y ?? 0;
+  const right = x + Math.max(0, width);
+  const bottom = y + Math.max(0, height);
+  return right >= viewLeft && x <= viewRight && bottom >= viewTop && y <= viewBottom;
+};
 
 const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
   screens,
@@ -303,7 +342,7 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
         0
       );
 
-      const baseW = 220;
+      const baseW = DEFAULT_NODE_WIDTH;
       const nodeW = Math.round(baseW * nodeScale);
 
       let nodeColor = 'hsl(var(--primary))';
@@ -521,6 +560,29 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [edgeHintsMap, setEdgeHintsMap] = useState<Map<string, string>>(edgeHints);
   useEffect(() => setEdgeHintsMap(edgeHints), [edgeHints]);
+  const [viewport, setViewport] = useState<{ x: number; y: number; zoom: number }>({ x: 0, y: 0, zoom: 1 });
+  const [renderBudget, setRenderBudget] = useState(0);
+  const [containerRect, setContainerRect] = useState<DOMRect | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const updateRect = () => {
+      if (diagramRef.current) {
+        setContainerRect(diagramRef.current.getBoundingClientRect());
+        return;
+      }
+      setContainerRect(new DOMRect(0, 0, window.innerWidth, window.innerHeight));
+    };
+    updateRect();
+    if (!diagramRef.current) return;
+    const observer = new ResizeObserver(updateRect);
+    observer.observe(diagramRef.current);
+    window.addEventListener("resize", updateRect);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateRect);
+    };
+  }, [open]);
 
   const persistPositions = useCallback(async (positions: NodePositionPayload[], options?: { silent?: boolean }) => {
     const signature = serializePositions(positions);
@@ -584,6 +646,46 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
   useEffect(() => {
     setEdges(initialEdges);
   }, [initialEdges, setEdges]);
+
+  const visibleCandidates = useMemo(
+    () => nodes.filter((node) => isNodeInViewport(node, viewport, containerRect ?? undefined)).slice(0, MAX_VISIBLE_NODES),
+    [nodes, viewport, containerRect],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    if (visibleCandidates.length === 0) {
+      setRenderBudget(0);
+      return;
+    }
+    let active = true;
+    let timer: number | null = null;
+    const initialBatch = Math.min(INITIAL_BATCH_SIZE, visibleCandidates.length);
+    setRenderBudget(initialBatch);
+    const schedule = (current: number) => {
+      if (!active || current >= visibleCandidates.length) return;
+      timer = window.setTimeout(() => {
+        setRenderBudget((prev) => Math.min(visibleCandidates.length, prev + LAZY_BATCH_SIZE));
+        schedule(current + LAZY_BATCH_SIZE);
+      }, LAZY_BATCH_DELAY_MS);
+    };
+    schedule(initialBatch);
+    return () => {
+      active = false;
+      if (timer) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [visibleCandidates.length, open]);
+
+  const visibleNodes = useMemo(() => visibleCandidates.slice(0, renderBudget), [visibleCandidates, renderBudget]);
+  const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
+  const visibleEdges = useMemo(
+    () => edges.filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)),
+    [edges, visibleNodeIds],
+  );
+
+  const showPerformanceWarning = screens.length > MAX_VISIBLE_NODES;
 
   // 统计信息
   const stats = useMemo(() => {
@@ -989,6 +1091,12 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
                 <span>总链接: {stats.totalLinks}</span>
               </div>
             </div>
+            {showPerformanceWarning && (
+              <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                <AlertCircle className="h-4 w-4" />
+                节点过多，已启用视口裁剪与分批加载，最多渲染 {MAX_VISIBLE_NODES} 个节点。
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-3 text-sm font-normal text-muted-foreground">
               <Button
                 variant="outline"
@@ -1115,8 +1223,8 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
         </DialogHeader>
         <div className="flex-1 relative overflow-hidden" ref={diagramRef}>
           <ReactFlow
-            nodes={nodes}
-            edges={edges}
+            nodes={visibleNodes}
+            edges={visibleEdges}
             onNodesChange={handleNodesChange}
             onEdgesChange={onEdgesChange}
             onNodeClick={handleNodeClick}
@@ -1131,7 +1239,15 @@ const TemplateFlowDiagram: React.FC<TemplateFlowDiagramProps> = ({
               onCreateLink(connection.source, connection.target);
             }
           }}
-          onInit={(inst) => setRfInstance(inst)}
+          onInit={(inst) => {
+            setRfInstance(inst);
+            if ("getViewport" in inst && typeof inst.getViewport === "function") {
+              setViewport(inst.getViewport());
+            }
+          }}
+          onMove={(_event, nextViewport) => {
+            if (nextViewport) setViewport(nextViewport);
+          }}
           fitView
           fitViewOptions={{ padding: 0.4, maxZoom: 1 }}
             minZoom={0.1}

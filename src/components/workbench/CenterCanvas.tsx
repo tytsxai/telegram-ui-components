@@ -91,14 +91,37 @@ export const CenterCanvas = React.memo<CenterCanvasProps>(({
     onMediaUrlChange,
     onOpenFlowDiagram,
 }) => {
-    React.useEffect(() => {
+    const applyTheme = React.useCallback(() => {
         const savedTheme = localStorage.getItem("theme");
-        if (savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
-            document.documentElement.classList.add("dark");
-        } else {
-            document.documentElement.classList.remove("dark");
-        }
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const shouldUseDark = savedTheme ? savedTheme === "dark" : prefersDark;
+        document.documentElement.classList.toggle("dark", shouldUseDark);
     }, []);
+
+    const handleMediaChange = React.useCallback((event: MediaQueryListEvent) => {
+        if (localStorage.getItem("theme")) return;
+        document.documentElement.classList.toggle("dark", event.matches);
+    }, []);
+
+    const handleStorageChange = React.useCallback((event: StorageEvent) => {
+        if (event.key !== "theme") return;
+        applyTheme();
+    }, [applyTheme]);
+
+    React.useEffect(() => {
+        applyTheme();
+        const controller = new AbortController();
+        const { signal } = controller;
+        const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+        mediaQuery.addEventListener("change", handleMediaChange, { signal });
+        window.addEventListener("storage", handleStorageChange, { signal });
+
+        return () => {
+            controller.abort();
+            mediaQuery.removeEventListener("change", handleMediaChange);
+            window.removeEventListener("storage", handleStorageChange);
+        };
+    }, [applyTheme, handleMediaChange, handleStorageChange]);
 
     const activeScreenId = currentScreenId ?? navigationHistory[navigationHistory.length - 1];
     const isEntryActive = !!entryScreenId && activeScreenId === entryScreenId;

@@ -21,7 +21,7 @@ export const validateButtonFields = (
   const calcBytes = getByteLength;
   const textLength = button.text?.length ?? 0;
 
-  if (!button.text.trim()) {
+  if (!button.text?.trim()) {
     nextErrors.text = "按钮文本不能为空";
   } else if (textLength > BUTTON_TEXT_MAX) {
     nextErrors.text = "按钮文本最多30个字符";

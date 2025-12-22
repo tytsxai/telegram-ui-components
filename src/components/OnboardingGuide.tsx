@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -31,6 +32,23 @@ export const OnboardingGuide = ({
   const skipButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const descriptionId = "onboarding-guide-description";
+
+  const getFocusableElements = () => {
+    const root = cardRef.current;
+    if (!root) return [];
+    const focusableSelectors = [
+      "a[href]",
+      "button:not([disabled])",
+      "textarea:not([disabled])",
+      "input:not([disabled])",
+      "select:not([disabled])",
+      "[tabindex]:not([tabindex='-1'])",
+    ];
+    return Array.from(root.querySelectorAll<HTMLElement>(focusableSelectors.join(","))).filter(
+      (el) => !el.hasAttribute("disabled") && el.getAttribute("aria-hidden") !== "true"
+    );
+  };
 
   useEffect(() => {
     if (visible) {
@@ -43,11 +61,55 @@ export const OnboardingGuide = ({
     }
   }, [visible]);
 
+  useEffect(() => {
+    if (!visible) return;
+    const handleDocumentFocus = (event: FocusEvent) => {
+      const root = cardRef.current;
+      const target = event.target as HTMLElement | null;
+      if (!root || !target || root.contains(target)) return;
+      const focusable = getFocusableElements();
+      const first = focusable[0] ?? root;
+      requestAnimationFrame(() => first.focus());
+    };
+    document.addEventListener("focusin", handleDocumentFocus);
+    return () => {
+      document.removeEventListener("focusin", handleDocumentFocus);
+    };
+  }, [visible]);
+
   const handleDismiss = () => {
     onDismiss();
     // restore focus to the element that was focused before the overlay opened, or fall back to body
     const target = previousFocusRef.current || document.body;
     requestAnimationFrame(() => target?.focus?.());
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      handleDismiss();
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const focusable = getFocusableElements();
+    if (focusable.length === 0) {
+      e.preventDefault();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (e.shiftKey) {
+      if (active === first || !active || !cardRef.current?.contains(active)) {
+        e.preventDefault();
+        last.focus();
+      }
+      return;
+    }
+    if (active === last) {
+      e.preventDefault();
+      first.focus();
+    }
   };
 
   if (!visible) return null;
@@ -88,15 +150,14 @@ export const OnboardingGuide = ({
         role="dialog"
         aria-modal="true"
         aria-label="一次性引导"
+        aria-describedby={descriptionId}
         tabIndex={-1}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.stopPropagation();
-            handleDismiss();
-          }
-        }}
+        onKeyDown={handleKeyDown}
         className="pointer-events-auto bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 text-white border border-white/10 shadow-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
       >
+        <p id={descriptionId} className="sr-only">
+          使用 Tab 在引导内容之间循环，按 Escape 关闭引导。
+        </p>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4 p-4 md:p-5">
           <div className="space-y-2">
             <div className="flex items-center gap-2">

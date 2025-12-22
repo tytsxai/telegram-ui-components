@@ -223,9 +223,12 @@ const PendingItemsList = React.memo(({
 
         const rawStart = Math.max(0, findIndex(scrollTop) - OVERSCAN_COUNT);
         const rawEnd = Math.min(items.length, findIndex(scrollTop + viewportHeight) + OVERSCAN_COUNT + 1);
-        const slice = offsets.slice(rawStart, rawEnd);
+        const estimatedRow = ESTIMATED_ROW_HEIGHT + ROW_GAP_PX;
+        const maxVisible = Math.max(1, Math.ceil(viewportHeight / estimatedRow) + OVERSCAN_COUNT * 2);
+        const cappedEnd = Math.min(rawEnd, rawStart + maxVisible);
+        const slice = offsets.slice(rawStart, cappedEnd);
         const paddingTop = offsets[rawStart]?.start ?? 0;
-        const last = offsets[rawEnd - 1];
+        const last = offsets[cappedEnd - 1];
         const paddingBottom = last ? Math.max(0, totalHeight - (last.start + last.height)) : 0;
 
         return {
