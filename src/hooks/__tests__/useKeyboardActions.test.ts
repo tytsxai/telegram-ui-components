@@ -2,6 +2,7 @@ import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useKeyboardActions } from "../chat/useKeyboardActions";
 import { MAX_BUTTONS_PER_ROW, MAX_KEYBOARD_ROWS } from "@/lib/validation";
+import type { KeyboardRow } from "@/types/telegram";
 
 const toast = vi.hoisted(() => ({
   warning: vi.fn(),
@@ -16,7 +17,7 @@ describe("useKeyboardActions limits", () => {
   });
 
   it("warns and starts a new row when the last row is full", () => {
-    let keyboard = [
+    let keyboard: KeyboardRow[] = [
       {
         id: "row-1",
         buttons: Array.from({ length: MAX_BUTTONS_PER_ROW }, (_, idx) => ({
@@ -27,7 +28,7 @@ describe("useKeyboardActions limits", () => {
       },
     ];
 
-    const setKeyboard = (updater: Parameters<typeof useKeyboardActions>[0]) => {
+    const setKeyboard = (updater: KeyboardRow[] | ((prev: KeyboardRow[]) => KeyboardRow[])) => {
       keyboard = typeof updater === "function" ? updater(keyboard) : updater;
     };
     const pushToHistory = vi.fn();
@@ -49,11 +50,11 @@ describe("useKeyboardActions limits", () => {
   });
 
   it("blocks adding rows when exceeding the maximum and surfaces an error", () => {
-    let keyboard = Array.from({ length: MAX_KEYBOARD_ROWS }, (_, idx) => ({
+    let keyboard: KeyboardRow[] = Array.from({ length: MAX_KEYBOARD_ROWS }, (_, idx) => ({
       id: `row-${idx}`,
       buttons: [{ id: `btn-${idx}`, text: "Button", callback_data: "cb" }],
     }));
-    const setKeyboard = (updater: Parameters<typeof useKeyboardActions>[0]) => {
+    const setKeyboard = (updater: KeyboardRow[] | ((prev: KeyboardRow[]) => KeyboardRow[])) => {
       keyboard = typeof updater === "function" ? updater(keyboard) : updater;
     };
     const pushToHistory = vi.fn();

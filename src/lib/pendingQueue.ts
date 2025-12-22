@@ -27,15 +27,17 @@ type PendingBase = {
   failures?: PendingFailure[];
 };
 
-export type PendingItem =
-  | (PendingBase & {
-      kind: "save";
-      payload: SavePayload;
-    })
-  | (PendingBase & {
-      kind: "update";
-      payload: UpdatePayload;
-    });
+export type PendingSaveItem = PendingBase & {
+  kind: "save";
+  payload: SavePayload;
+};
+
+export type PendingUpdateItem = PendingBase & {
+  kind: "update";
+  payload: UpdatePayload;
+};
+
+export type PendingItem = PendingSaveItem | PendingUpdateItem;
 
 const STORAGE_VERSION = "v2";
 const buildKey = (userId?: string | null) => `pending_ops_${STORAGE_VERSION}_${userId ?? "anon"}`;

@@ -27,8 +27,7 @@ const base64FromUTF8 = (input: string) => {
 
 if (typeof globalThis.Buffer === "undefined") {
   // Minimal Buffer shim for browser builds (base64 only)
-  // @ts-expect-error Browser polyfill
-  globalThis.Buffer = {
+  (globalThis as unknown as { Buffer: unknown }).Buffer = {
     from: (input: string) => ({
       toString: (encoding?: string) => {
         if (encoding === "base64") {

@@ -7,6 +7,7 @@ import {
   clearPendingOps,
   savePendingOps,
   type PendingItem,
+  type PendingSaveItem,
 } from "../pendingQueue";
 
 describe("pendingQueue", () => {
@@ -30,7 +31,8 @@ describe("pendingQueue", () => {
     expect(queue).toHaveLength(1);
     expect(queue[0].id).toBe(op.id);
     expect(queue[0].attempts).toBe(0);
-    expect(queue[0].payload.name).toBe("Test");
+    const saveItem = queue[0] as PendingSaveItem;
+    expect(saveItem.payload.name).toBe("Test");
   });
 
   it("replaces update operations for the same screen", () => {
@@ -45,7 +47,9 @@ describe("pendingQueue", () => {
 
     const queue = readPendingOps("user-1");
     expect(queue).toHaveLength(1);
-    expect(queue[0].payload.update?.message_content).toBe("v2");
+    if (queue[0].kind === "update") {
+      expect(queue[0].payload.update?.message_content).toBe("v2");
+    }
   });
 
   it("processes queue with retries and drops after max attempts", async () => {
