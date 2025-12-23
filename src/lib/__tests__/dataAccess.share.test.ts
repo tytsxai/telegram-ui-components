@@ -113,7 +113,7 @@ describe("SupabaseDataAccess share helpers", () => {
   it("throws when rotating or revoking without a user id", async () => {
     const { client } = buildClient({ data: null, error: null });
     const dataAccess = new SupabaseDataAccess(client);
-    await expect(dataAccess.rotateShareToken("s1", "tok")).rejects.toThrow(/requires userId/);
-    await expect(dataAccess.revokeShareToken("s1")).rejects.toThrow(/requires userId/);
+    await expect(dataAccess.rotateShareToken("s1", "tok")).rejects.toThrow(/用户登录|用户 ID/);
+    await expect(dataAccess.revokeShareToken("s1")).rejects.toThrow(/用户登录|用户 ID/);
   });
 });

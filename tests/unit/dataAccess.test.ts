@@ -192,9 +192,9 @@ describe("SupabaseDataAccess", () => {
 
   it("throws when share helpers are called without a user id", async () => {
     const da = new SupabaseDataAccess({ from: vi.fn() } as unknown as { from: () => unknown }, {});
-    await expect(da.publishShareToken({ screenId: "s1", token: "t" })).rejects.toThrow(/requires userId/);
-    await expect(da.rotateShareToken("s1", "t2")).rejects.toThrow(/requires userId/);
-    await expect(da.revokeShareToken("s1")).rejects.toThrow(/requires userId/);
+    await expect(da.publishShareToken({ screenId: "s1", token: "t" })).rejects.toThrow(/用户登录|用户 ID/);
+    await expect(da.rotateShareToken("s1", "t2")).rejects.toThrow(/用户登录|用户 ID/);
+    await expect(da.revokeShareToken("s1")).rejects.toThrow(/用户登录|用户 ID/);
   });
 
   it("falls back to safe ids when crypto.randomUUID fails", async () => {
@@ -326,8 +326,8 @@ describe("SupabaseDataAccess", () => {
 
   it("throws when user id is missing for save/update", async () => {
     const da = new SupabaseDataAccess({ from: vi.fn() } as unknown as { from: () => unknown });
-    await expect(da.saveScreen({ name: "NoUser", message_content: "m", keyboard: [], is_public: false })).rejects.toThrow(/requires userId/);
-    await expect(da.updateScreen({ screenId: "s1", update: { message_content: "m" } })).rejects.toThrow(/requires userId/);
+    await expect(da.saveScreen({ name: "NoUser", message_content: "m", keyboard: [], is_public: false })).rejects.toThrow(/用户登录|用户 ID/);
+    await expect(da.updateScreen({ screenId: "s1", update: { message_content: "m" } })).rejects.toThrow(/用户登录|用户 ID/);
   });
 
   it("invokes retry callback with action metadata", async () => {

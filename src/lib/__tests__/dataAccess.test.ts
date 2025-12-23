@@ -174,7 +174,7 @@ describe("SupabaseDataAccess ownership checks", () => {
     const { client, spies } = buildUpsertClient();
     const dataAccess = new SupabaseDataAccess(client);
 
-    await expect(dataAccess.upsertPins({ pinned_ids: ["s1"] } as never)).rejects.toThrow(/requires userId/);
+    await expect(dataAccess.upsertPins({ pinned_ids: ["s1"] } as never)).rejects.toThrow(/用户登录|用户 ID/);
     expect(spies.upsert).not.toHaveBeenCalled();
   });
 
@@ -196,7 +196,7 @@ describe("SupabaseDataAccess ownership checks", () => {
 
     await expect(
       dataAccess.upsertLayouts([{ screen_id: "s1", x: 0, y: 0 }] as never),
-    ).rejects.toThrow(/requires userId/);
+    ).rejects.toThrow(/用户登录|用户 ID/);
     expect(spies.upsert).not.toHaveBeenCalled();
   });
 
@@ -205,7 +205,7 @@ describe("SupabaseDataAccess ownership checks", () => {
     const dataAccess = new SupabaseDataAccess(client);
 
     await expect(dataAccess.updateScreen({ screenId: "s1", update: {} } as never)).rejects.toThrow(
-      /requires userId/,
+      /用户登录|用户 ID/,
     );
     expect(spies.update).not.toHaveBeenCalled();
   });
@@ -214,7 +214,7 @@ describe("SupabaseDataAccess ownership checks", () => {
     const { client, spies } = buildDeleteClient();
     const dataAccess = new SupabaseDataAccess(client);
 
-    await expect(dataAccess.deleteScreens({ ids: ["s1"] })).rejects.toThrow(/requires userId/);
+    await expect(dataAccess.deleteScreens({ ids: ["s1"] })).rejects.toThrow(/用户登录|用户 ID/);
     expect(spies.deleteFn).not.toHaveBeenCalled();
   });
 
@@ -232,7 +232,7 @@ describe("SupabaseDataAccess ownership checks", () => {
     const { client, spies } = buildInsertClient({ data: { id: "s1" }, error: null });
     const dataAccess = new SupabaseDataAccess(client, { userId: null });
 
-    await expect(dataAccess.saveScreen({ name: "Screen 1" } as never)).rejects.toThrow(/requires userId/);
+    await expect(dataAccess.saveScreen({ name: "Screen 1" } as never)).rejects.toThrow(/用户登录|用户 ID/);
     expect(spies.insert).not.toHaveBeenCalled();
   });
 
@@ -240,7 +240,7 @@ describe("SupabaseDataAccess ownership checks", () => {
     const { client, spies } = buildUpdateChainClient({ data: { id: "s1" }, error: null });
     const dataAccess = new SupabaseDataAccess(client, { userId: undefined });
 
-    await expect(dataAccess.publishShareToken({ screenId: "s1", token: "tok" })).rejects.toThrow(/requires userId/);
+    await expect(dataAccess.publishShareToken({ screenId: "s1", token: "tok" })).rejects.toThrow(/用户登录|用户 ID/);
     expect(spies.update).not.toHaveBeenCalled();
   });
 

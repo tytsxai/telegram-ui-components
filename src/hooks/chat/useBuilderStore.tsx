@@ -789,9 +789,7 @@ export const useBuilderStore = () => {
   const generateShareToken = useCallback(() => {
     if (typeof crypto !== "undefined") {
       try {
-        // @ts-expect-error browser crypto
         if (crypto.randomUUID) {
-          // @ts-expect-error randomUUID polyfill
           return crypto.randomUUID();
         }
         if (crypto.getRandomValues) {
@@ -803,7 +801,7 @@ export const useBuilderStore = () => {
         console.error("生成分享 token 失败", e);
       }
     }
-    throw new Error("当前环境不支持安全随机数，无法生成分享链接");
+    throw new Error("当前环境不支持安全随机数，请使用现代浏览器（Chrome 89+、Firefox 95+、Safari 15+、Edge 89+）以生成分享链接");
   }, []);
 
   const hasBrokenLinks = useCallback(

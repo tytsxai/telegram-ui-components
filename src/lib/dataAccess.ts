@@ -276,7 +276,7 @@ const safeUUID = () => {
 
 const assertUserOwnership = (action: string, userId?: string | null) => {
   if (typeof userId !== "string" || userId.trim().length === 0) {
-    throw new Error(`${action} requires userId`);
+    throw new Error(`操作「${action}」需要用户登录或有效的用户 ID`);
   }
   return userId;
 };
