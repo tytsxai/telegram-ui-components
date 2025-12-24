@@ -13,11 +13,13 @@
 
 免责声明：Telegram 是 Telegram Messenger LLP 的商标。本项目为第三方工具，与 Telegram 官方无隶属/背书关系。
 
-## Online demo (GitHub Pages)
+## Online Demo
+如果你没有自定义域名，可以直接使用以下链接进行体验：
 
-如果你没有自定义域名，可以直接使用 GitHub Pages 作为“官方入口”：
+- **Official Access**: https://telegram-ui-components.lovable.app
+- (Legacy GitHub Pages: https://tytsxai.github.io/telegram-ui-builder/)
 
-- URL: https://tytsxai.github.io/telegram-ui-builder/
+如果你想自己部署到 GitHub Pages：
 - 部署方式：推送到 `main` 分支后，GitHub Actions 会自动构建并发布（见 `.github/workflows/pages.yml`）
 - 首次启用：在 GitHub 仓库 `Settings → Pages` 中，将 `Build and deployment` 设为 `GitHub Actions`
 - 生产使用前请配置 Actions Secrets：`VITE_SUPABASE_URL`、`VITE_SUPABASE_PUBLISHABLE_KEY`（可选：`VITE_ERROR_REPORTING_URL`/`VITE_ERROR_REPORTING_API_KEY`），否则构建会被 `build:prod` 阻止
