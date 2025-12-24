@@ -1,7 +1,7 @@
 {
   "name": "telegram-ui-builder",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Visual workbench for Telegram Bot messages + inline keyboards + multi-screen flows.",
   "license": "MIT",
   "repository": {

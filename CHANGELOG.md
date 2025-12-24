@@ -4,7 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
-## [0.1.0] - 2025-12-20
+
+## [0.1.1] - 2025-12-24
+
+### Fixed
+- **UI**: Decoupled the top toolbar from the phone simulator width constraint to resolve overlapping text issues.
+- **Config**: Relaxed runtime environment checks (`runtimeConfig.ts`) so the app can launch even with missing or placeholder Supabase keys.
+- **Build**: Updated `verify-env.mjs` to prevent build failures on environment validation warnings.
+- **Tests**: Fixed `supabaseMock.ts` to support `get_public_screen_by_token` RPC calls in E2E tests.
+
+### Changed
+- **Docs**: Updated `README.md` and `package.json` with the new Lovable demo URL: `https://telegram-ui-components.lovable.app`.
+- **Dev**: Updated Playwright config to default to port 8080.
+
 
 ### Added
 - Repository governance docs: `LICENSE`, `SECURITY.md`, `CODE_OF_CONDUCT.md`
